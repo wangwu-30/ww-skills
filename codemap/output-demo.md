@@ -146,3 +146,71 @@ index.html  ~60–80KB, ~1200–1500 lines
   <script> rendering + interaction ~350 lines
   <script> animation + lang + init ~100 lines
 ```
+
+---
+
+## Visual Style (inspired by Cocoon Architecture Diagrams)
+
+### Background: grid pattern
+```css
+/* In <defs> of the SVG */
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a2332" stroke-width="0.5"/>
+</pattern>
+/* First element in SVG: */
+<rect width="100%" height="100%" fill="url(#grid)"/>
+```
+
+### Node rendering (semi-transparent fills)
+```js
+// Node fill: rgba of the node's accent color at 15% opacity
+// Node stroke: the accent color at full opacity, 1.5px
+// Background rect (opaque) drawn BEFORE edge lines so edges don't show through:
+
+// 1. Draw opaque bg rect (same position, fill=#0d1117)
+// 2. Draw all edges
+// 3. Draw semi-transparent node rects on top
+
+function nodeStyle(color) {
+  return {
+    fill:   hexToRgba(color, 0.15),   // e.g. rgba(88,166,255,0.15)
+    stroke: color,
+    strokeWidth: '1.5',
+  };
+}
+```
+
+### Semantic color assignment
+```
+Entry/CLI nodes:      #58a6ff  (blue)   — user-facing, commands
+Orchestration:        #e3b341  (amber)  — workers, execution
+Infrastructure:       #bc8cff  (purple) — MCP servers, protocols
+Storage/State:        #3fb950  (green)  — databases, files, queues
+Transport/Async:      #e3b341  (amber)  — tmux, message buses
+Monitoring/Output:    #f778ba  (pink)   — HUD, dashboards, logs
+```
+
+### Boundary boxes (group same-layer nodes)
+```js
+// Draw a dashed rect around nodes in the same layer
+// 12px padding around the group bounding box
+// stroke: same color as nodes, opacity 0.3, stroke-dasharray: "6 3"
+// fill: rgba(color, 0.04)
+```
+
+### Typography
+```css
+/* Prefer JetBrains Mono for all SVG text */
+font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+/* Node label: 11px, weight 600 */
+/* Sub-label (file path etc): 9px, weight 400, opacity 0.7 */
+/* Edge label: 9px, weight 400 */
+```
+
+### Arrow labels (protocol/relationship names)
+```
+solid arrow  + short label → synchronous: "spawn", "calls", "writes"
+dashed arrow + short label → async:       "poll", "events", "read-back"
+Label max 12 chars. Position: midpoint of edge path, offset 5px above.
+```
