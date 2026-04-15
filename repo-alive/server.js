@@ -19,7 +19,9 @@ try {
 } catch (_) { console.error("Run: npm install ws"); process.exit(1); }
 
 const PORT      = parseInt(process.argv[2] || process.env.PORT || "4311", 10);
-const ROOT      = process.cwd();
+// REPO_ALIVE_ROOT is set by the skill's Serve phase via env
+// Falls back to cwd only for manual invocation from the project directory
+const ROOT      = path.resolve(process.env.REPO_ALIVE_ROOT || process.cwd());
 const DATA_DIR  = path.join(ROOT, ".repo-alive");
 const NODE_DIR  = path.join(DATA_DIR, "nodes");
 const SCEN_DIR  = path.join(DATA_DIR, "scenarios");
@@ -316,6 +318,7 @@ POST /ask     GET  /pending    POST /answer</pre>
 // ── Start ─────────────────────────────────────────────────────────────────────
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`\nrepo-alive server at http://localhost:${PORT}`);
+  console.log(`  Project:  ${ROOT}`);
   console.log(`  Canvas:   http://localhost:${PORT}/`);
   console.log(`  Graph:    http://localhost:${PORT}/graph`);
   console.log(`  Events:   http://localhost:${PORT}/events  (SSE)`);

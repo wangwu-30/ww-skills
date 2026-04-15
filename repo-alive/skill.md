@@ -478,16 +478,21 @@ Write to `.repo-alive/`:
 ## Phase: Serve
 
 ```bash
-cd "$REPO_ROOT"
-if [ ! -d node_modules/ws ]; then
-  npm install ws --no-save 2>/dev/null || npm install ws
+# Resolve skill directory (where server.js lives) — robust across all shells
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Install ws in the skill directory if missing (server.js resolves modules from there)
+if [ ! -d "$SKILL_DIR/node_modules/ws" ]; then
+  echo "Installing ws in skill directory..."
+  (cd "$SKILL_DIR" && npm install ws --no-save 2>/dev/null || npm install ws)
 fi
-node "$(dirname "$0")/server.js" 4311 &
+
+# Start server — pass REPO_ROOT via env so server.js uses the correct project
+REPO_ALIVE_ROOT="$REPO_ROOT" node "$SKILL_DIR/server.js" 4311 &
 SERVER_PID=$!
 sleep 1
-open http://localhost:4311 2>/dev/null || \
-  xdg-open http://localhost:4311 2>/dev/null || \
-  echo "Open http://localhost:4311"
+
+open "http://localhost:4311" 2>/dev/null ||   xdg-open "http://localhost:4311" 2>/dev/null ||   echo "Open http://localhost:4311"
 echo "Server PID: $SERVER_PID  |  Stop: kill $SERVER_PID"
 ```
 
