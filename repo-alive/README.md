@@ -87,7 +87,6 @@ Full re-analysis only when >20% of nodes are affected.
 
 ## Zero customization policy
 
-No oh-my-codex-specific logic. No framework assumptions.
 The analysis algorithm uses only generic signals:
 - file structure + entrypoints
 - generic grep patterns (import/export/fetch/publish...)

@@ -1,13 +1,11 @@
 ---
 name: repo-alive
-version: 1.0.0
+version: 1.1.0
 description: |
-  Makes any codebase self-explanatory. Analyzes the repo once, persists
-  understanding as JSON manifests in .repo-alive/, then serves an interactive
-  canvas where every node is a queryable Agent backed by real code.
-  Zero framework assumptions. Works on any language or project layout.
-  Use when asked to "explore this codebase", "make it alive", "understand this repo",
-  "explain this codebase interactively".
+  Makes any codebase self-explanatory. Runs an uncertainty-reduction analysis loop
+  to build node manifests, then serves an interactive canvas where every node is a
+  queryable Agent backed by real code. Zero framework assumptions.
+  Use when asked to "explore this codebase", "make it alive", "understand this repo".
 allowed-tools:
   - Bash
   - Glob
@@ -20,247 +18,405 @@ allowed-tools:
 ## Preamble
 
 ```bash
-echo "REPO-ALIVE v1.0.0"
+echo "REPO-ALIVE v1.1.0"
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 echo "REPO_ROOT: $REPO_ROOT"
 GIT_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "NO_GIT")
 echo "GIT_HEAD: $GIT_HEAD"
 DATA_DIR="$REPO_ROOT/.repo-alive"
 FINGERPRINT="$DATA_DIR/fingerprint.json"
-echo "DATA_DIR: $DATA_DIR"
 FRESH="no"
 if [ -f "$FINGERPRINT" ]; then
-  STORED=$(python3 -c "import json,sys; d=json.load(open('$FINGERPRINT')); print(d.get('git_head',''))" 2>/dev/null || echo "")
+  STORED=$(python3 -c "import json; d=json.load(open('$FINGERPRINT')); print(d.get('git_head',''))" 2>/dev/null || echo "")
   [ "$STORED" = "$GIT_HEAD" ] && FRESH="yes"
 fi
 echo "MANIFESTS_FRESH: $FRESH"
 ```
 
+If `MANIFESTS_FRESH=yes` → skip to **Phase: Serve**.
+If `MANIFESTS_FRESH=no` → run **Analysis Engine**.
+
 ---
 
-## Rules (read before doing anything)
+## Rules
 
 - Work against `$REPO_ROOT`. Never hardcode paths.
-- Do not assume any framework, language, or project layout.
-- Never write oh-my-codex-specific logic. Every pattern must be generic.
-- Manifests are the only persistent state. Plain JSON under `.repo-alive/`.
-- When answering a question about a node: read only that node's manifest + its `owned_files`. Nothing else.
-- Every claim in a manifest must have `evidence` (file + line + snippet). No evidence = omit the claim.
-- If budget runs out mid-analysis: write partial manifests with `"analysis_status": "partial"`. Never hallucinate.
+- Every claim must carry `evidence: [{path, line, snippet}]`. No evidence = omit or mark `candidate: true, confidence: 0.3`.
+- Apply taint **before** any fan-in or cluster scoring.
+- Three views (structure / behavior / data) must stay separate in scenario manifests.
+- Budget is a soft optimization. If a run stops early, persist state as `partial: true` and resume next run.
 
 ---
 
-## Phase 1 — Freshness Check
+## Analysis Engine
 
-If `MANIFESTS_FRESH=yes`: skip to Phase 3 (Serve).
-If `MANIFESTS_FRESH=no`: run Phase 2 (Analyze).
+This is **not** a fixed pipeline. It is an uncertainty-reduction loop.
 
----
+### Core loop (道)
 
-## Phase 2 — Analysis (run once, ~60-700 tool calls depending on repo size)
+```pseudo
+threshold = 0.8
 
-### Step 2.0 — Scope and budget
+while min_confidence(all_candidate_nodes) < threshold:
+    question = highest_uncertainty_question(state.questions)
+    tool     = cheapest_tool_that_answers(question)
+    result   = execute(tool)
+    update_fact_store(state, result)
+    apply_taint_before_scoring(state)
+    update_hypotheses(state.hypotheses, result)
+    update_confidence(state.confidence, result)
+    refresh_questions(state)
 
-```bash
-# File count for budget planning
-find "$REPO_ROOT" -type f \
-  ! -path "*/.git/*" ! -path "*/node_modules/*" ! -path "*/vendor/*" \
-  ! -path "*/dist/*" ! -path "*/build/*" ! -path "*/target/*" \
-  ! -path "*/.next/*" ! -path "*/coverage/*" ! -name "*.png" \
-  ! -name "*.jpg" ! -name "*.gif" ! -name "*.pdf" ! -name "*.zip" \
-  ! -name "*.exe" ! -name "*.dll" ! -name "*.so" ! -name "*.dylib" \
-  | wc -l
+output verified_model(state)
 ```
 
-Budget by file count:
-- < 200 files  → 120 tool calls max
-- 200–1500     → 300 tool calls max
-- > 1500       → 700 tool calls max
+Tool cost order (always pick cheapest first):
+1. `rg --files` — path existence / inventory
+2. `rg -n` — pattern scan / signal existence
+3. `sed -n` — targeted file window read
+4. scoped cross-reference scan
 
-Allocation: 5% fingerprint/scope · 20% L0 discovery · 35% L1 discovery · 20% interfaces+connections · 15% scenarios · 5% consistency
+### State Block
 
-### Step 2.1 — Inventory
+Maintain this JSON between phases. Update after every tool call.
+
+```json
+{
+  "phase": 0,
+  "scope": ".",
+  "threshold": 0.8,
+  "fact_store": {
+    "repo_root": ".",
+    "files": [],
+    "directories": [],
+    "manifests": [],
+    "candidate_roots": [],
+    "import_edges": [],
+    "interface_signals": [],
+    "open_questions": [],
+    "locked_partitions": { "L0": [], "L1": {} }
+  },
+  "hypotheses": [],
+  "confidence": {},
+  "questions": [],
+  "tainted": [],
+  "budget_used": { "tool_calls": 0 },
+  "partial": false
+}
+```
+
+---
+
+## Phase 0 — Wide Search (parallel, one turn)
+
+Goal: broad repo facts + taint marking + seed for first hypotheses.
 
 Run these in parallel:
 
-**A. Full file list (filtered)**
-```
-Glob: ** (exclude: .git, node_modules, vendor, dist, build, target, .next, coverage, *.{png,jpg,gif,pdf,zip,exe,dll,so,dylib,class,jar})
-```
-
-**B. Root manifests**
-```
-Glob: {package.json,pyproject.toml,requirements.txt,setup.py,go.mod,Cargo.toml,pom.xml,build.gradle,Makefile,Dockerfile,compose.yaml,compose.yml,.env.example}
+**A. File inventory**
+```bash
+rg --files . \
+  -g '!**/.git/**' -g '!**/node_modules/**' -g '!**/dist/**' \
+  -g '!**/build/**' -g '!**/target/**' -g '!**/coverage/**' \
+  -g '!**/.venv/**' -g '!**/vendor/**'
 ```
 
-**C. Workspace/monorepo hints**
+**B. Root/manifest/boundary scan**
+```bash
+rg --files . | rg '(^|/)(package\.json|pyproject\.toml|setup\.py|Cargo\.toml|go\.mod|go\.work|pom\.xml|build\.gradle|Makefile|Dockerfile|README\.md)$'
 ```
-Glob: {packages/*/package.json,apps/*/package.json,services/*/go.mod,crates/*/Cargo.toml,*/pyproject.toml}
+
+**C. Import/reference seed**
+```bash
+rg -n --no-heading \
+  -g '!**/.git/**' -g '!**/node_modules/**' -g '!**/dist/**' \
+  -g '!**/build/**' -g '!**/target/**' -g '!**/coverage/**' \
+  '\b(import|export\s+.+\s+from|require\(|from\s+["\x27]|include\s+|use\s+|mod\s+)'
 ```
 
-Read any root manifests found. Extract: package names, workspace members, bin/scripts entries, dependencies.
-
-### Step 2.2 — L0 boundary detection
-
-L0 = a top-level executable/deployable subsystem, or a major bounded module in a single-app repo.
-
-**Signals (in priority order):**
-
-1. Monorepo workspace members → one L0 per member
-2. Multiple `go.mod` / `Cargo.toml` / `package.json` under subdirs → one L0 per package root
-3. Directories containing entrypoints:
+**D. Entrypoint/interface seed**
+```bash
+rg -n --no-heading \
+  -g '!**/.git/**' -g '!**/node_modules/**' -g '!**/dist/**' \
+  '\b(main\s*\(|if __name__ == .__main__.|listen|serve|handle|receive|consume|dispatch|fetch|connect|query|insert|update|delete|publish|subscribe|emit|render)\b'
 ```
-Grep: pattern="if __name__ == ['\"]__main__['\"]|func main\(|process\.argv|commander|click\.command|argparse|FastAPI\(|Flask\(|express\(|http\.ListenAndServe|tokio::main|cobra\.Command"
-glob="**/*.{py,js,ts,go,rs}"
-```
-4. README/docs naming subsystems:
-```
-Grep: pattern="(service|worker|api|server|frontend|backend|cli|daemon|gateway|job|consumer|producer|package|crate|module)"
-paths=["README*","docs/**","*.md"]
-```
-5. Fallback: top-level directories with >5% of source files each
 
-**L0 count targets:** 3–8 for small repos · 5–15 for medium · 10–30 for large
-If too many candidates: merge those sharing >40% imports or the same root manifest.
+**E. Taint scan (run first, before any scoring)**
+```bash
+rg --files . | rg '(^|/)(index\.(ts|js)|__init__\.py|types\.(ts|py)|schema\.[^/]+|generated/|vendor/|utils/|shared/|common/|[^/]+\.config\.[^/]+|constants\.[^/]+)'
+```
 
-**For each L0, record:**
+After Phase 0, populate `state.fact_store` and `state.tainted`.
+Apply taint multiplier `0.1` to any edge involving a tainted path before scoring.
+
+---
+
+## Phase 1 — Hypothesis Generation (法: 假设)
+
+Generate **2–3 falsifiable L0 partition hypotheses** from Phase 0 facts.
+
+Hypotheses are about **L0 partitions** (which directories are top-level nodes), not architecture types.
+
+**Hypothesis format:**
 ```json
 {
-  "id": "<slug>",
-  "name": "<human name>",
+  "id": "H1",
   "level": "L0",
-  "root_path": "<relative path>",
-  "language_mix": ["<lang>"],
-  "owned_files": ["<relative paths>"],
-  "key_files": [{"path": "...", "reason": "..."}],
-  "entrypoints": [{"kind": "server|cli|job|consumer", "path": "...", "evidence": [...]}]
+  "scope": ".",
+  "partition": [
+    { "id": "l0:api", "path": "services/api" },
+    { "id": "l0:web", "path": "apps/web" }
+  ],
+  "predicted_signals": [
+    { "id": "S1", "type": "path_exists",        "value": "services/api/package.json" },
+    { "id": "S2", "type": "path_exists",        "value": "apps/web/package.json" },
+    { "id": "S3", "type": "boundary_reference", "value": "root workspace references services/* apps/*" },
+    { "id": "S4", "type": "edge_pattern",       "value": "apps/web imports services/api or shared" }
+  ],
+  "confidence": 0.45,
+  "status": "active"
 }
 ```
 
-### Step 2.3 — L1 boundary detection (per L0)
+Seed confidence: 0.4–0.5 based on how many Phase 0 signals support the partition.
 
-L1 = internal bounded component inside an L0.
+---
 
-For each L0:
+## Phase 2 — Hypothesis Verification Loop (法: 检验→修正)
+
+For each active hypothesis, test its predicted signals with the cheapest probe first.
+
+**Probe by signal type:**
+
+`path_exists`:
+```bash
+rg --files . | rg '^services/api/package\.json$'
 ```
-Glob: <l0-root>/**
-Grep: pattern="(import |from |require\(|use |mod )" paths=[<l0-root>/**]
+
+`boundary_reference`:
+```bash
+rg -n 'apps/|services/|packages/' package.json pnpm-workspace.yaml yarn.lock go.work Cargo.toml 2>/dev/null
 ```
 
-Score directory clusters by:
-- source file count
-- presence of role-named files: `routes|handlers|controllers|views|api|service|usecase|domain|core|repo|store|db|queue|jobs|worker|client|sdk|ui|components|pages`
-- import cohesion within cluster vs cross-cluster
+`edge_pattern`:
+```bash
+rg -n --no-heading 'services/api|packages/shared' apps/web 2>/dev/null
+```
 
-Create L1 if cluster has coherent responsibility and ≥3 files.
-Each L1 must own a non-overlapping file set.
+**Confidence update math:**
+```
+signal found AND predicted by H     → confidence += 0.20
+signal found AND NOT predicted by H → confidence -= 0.30
+signal absent AND predicted by H    → confidence -= 0.15
+```
+Clamp to [0.0, 1.0].
+
+**Stop criteria:**
+- Lock hypothesis when `confidence > 0.8`
+- Falsify hypothesis when `confidence < 0.1`
+- Stop L0 loop when one hypothesis is locked AND all others are falsified
+
+**Worked example:**
+
+Initial: `{ H1: 0.45, H2: 0.30, H3: 0.25 }`
+
+Probe: `services/api/package.json` exists?
+- H1 predicted it → `0.45 + 0.20 = 0.65`
+- H2 did not predict it → `0.30 - 0.30 = 0.00` (falsified)
+- H3 did not predict it → `0.25 - 0.30 = 0.00` (falsified)
+
+Probe: `apps/web/package.json` exists?
+- H1 predicted it → `0.65 + 0.20 = 0.85` → **locked**
+
+---
+
+## Phase 3 — L1 Discovery (same loop, scoped per L0)
+
+For each locked L0 node, run the same Phase 0→1→2 loop scoped to that subtree.
+
+```bash
+# Scoped to one L0
+rg --files services/api
+rg -n --no-heading '\b(import|export\s+.+\s+from|require\()' services/api
+rg --files services/api | rg '(^|/)(index\.(ts|js)|types\.(ts|py)|generated/|utils/|shared/)'
+```
+
+Apply taint before scoring. Generate L1 partition hypotheses. Verify. Lock.
+
 Small L0s (<10 files) may skip L1.
 
-### Step 2.4 — Interface extraction (per node)
+---
 
-For each L0 and L1, grep owned files with these generic patterns:
+## Phase 4 — Interface + Connection Extraction
 
-**Inbound (receives):**
-```
-Grep: pattern="(route|router|handler|controller|endpoint|command|subcommand|stdin|argv|flag|consumer|subscribe|listen|websocket|cron|schedule)"
-```
+After L0 and L1 are locked. Generic patterns only — no framework names.
 
-**Outbound (sends):**
-```
-Grep: pattern="(fetch\(|axios\.|requests\.|http\.|grpc|rpc|publish|produce|emit|send|enqueue|writeFile|fs\.|sql|query|exec\(|insert|update|delete)"
+**Inbound:**
+```bash
+rg -n --no-heading '\b(handle|listen|serve|receive|consume|accept|dispatch)\b'
 ```
 
-**Data shapes:**
-```
-Grep: pattern="(schema|model|struct|class|interface|type |zod|pydantic|serde|dto|payload|request|response|event|message)"
-```
-
-Read only matched files. Classify each match into:
-- `receives` / `sends` / `reads_from` / `writes_to` / `triggers` / `exposes`
-
-**Do not infer transport from framework name alone.** Infer from behavior:
-- route + request/response → HTTP interface
-- file/DB ops → storage interface
-- publish/emit/send → message interface
-- argv/flag parsing → CLI interface
-- schedule/cron → scheduled trigger
-
-### Step 2.5 — Connection extraction
-
-For each node pair, look for:
-
-```
-Grep: pattern="(import |from |require\(|use )" → cross-ownership imports
-Grep: pattern="(fetch\(|axios\.|requests\.|http\.|grpc|rpc)" → HTTP calls
-Grep: pattern="(publish|emit|produce|enqueue|subscribe|consume|topic|queue|event|message)" → messages
-Grep: pattern="(sql|query|table|collection|bucket|redis|cache|s3|blob)" → shared storage
-Grep: pattern="(exec\(|spawn\(|fork\(|subprocess|os\.exec)" → process spawning
+**Outbound:**
+```bash
+rg -n --no-heading '\b(send|publish|emit|request|fetch|call|connect|open)\b'
 ```
 
-For each match: map the target symbol/path/resource back to an owned node.
-**No evidence = no edge.** Store: `{ to, type, direction, label, confidence, evidence: [{file, line, snippet}] }`
-
-### Step 2.6 — Scenario extraction
-
-Detect candidate entry actions:
-```
-Grep: pattern="(request|login|create|update|delete|sync|run|start|serve|build|upload|download|process)"
-paths=["README*","docs/**","tests/**","examples/**","**/test_*.{py,go}","**/*.test.{ts,js}","**/*.spec.{ts,js}"]
+**Storage:**
+```bash
+rg -n --no-heading '\b(query|select|insert|update|delete|save|load|persist|commit)\b'
 ```
 
-Score by: centrality in graph · README/docs mention · completeness of downstream path · user-facing nature.
+**Data contracts:**
+```bash
+rg -n --no-heading '\b(type|interface|schema|struct|record|dto|payload|message|event)\b'
+```
 
-For top 3–10 candidates:
-1. Read entry file + immediate downstream files
-2. Walk one concrete path until: response produced / data persisted / job enqueued / terminal side effect
-3. Record each hop as a step with actor, node, action, evidence
-4. Place a checkpoint after the first irreversible transition
-5. Find the first explicit error/guard/retry path → failure branch
+**Interface classification (by local evidence, not framework name):**
+```
+inbound_score  += 2 if path/name contains handler|route|controller|listener|consumer|entry|main
+inbound_score  += 1 per context verb: handle listen serve receive consume accept dispatch
 
-### Step 2.7 — Write manifests
+outbound_score += 2 if path/name contains client|gateway|adapter|publisher|producer
+outbound_score += 1 per context verb: send publish emit request fetch call connect open
 
-Create `.repo-alive/` and write:
+storage_score  += 2 if path/name contains repo|store|dao|model|migration|schema
+storage_score  += 1 per context verb: query select insert update delete save load persist
+```
 
-**`fingerprint.json`**
+Pick highest score ≥ 2. Otherwise: `{ "type": "unknown", "candidate": true, "confidence": 0.3 }`.
+
+**Connection requires evidence on BOTH sides:**
 ```json
 {
-  "schema_version": "1.0",
-  "git_head": "<GIT_HEAD>",
-  "generated_at": "<ISO timestamp>",
-  "tool": "repo-alive/1.0.0"
-}
-```
-
-**`graph.json`**
-```json
-{
-  "schema_version": "1.0",
-  "generated_at": "...",
-  "nodes": [
-    {
-      "id": "<id>",
-      "name": "<name>",
-      "level": "L0",
-      "root_path": "...",
-      "summary": "...",
-      "child_node_ids": ["..."],
-      "scenario_refs": ["..."]
-    }
-  ],
-  "edges": [
-    { "from": "<id>", "to": "<id>", "type": "call|http|message|storage|spawn|config|import",
-      "label": "...", "confidence": 0.0–1.0 }
+  "from": "l1:api.handler",
+  "to": "l1:data.repo",
+  "type": "internal_call",
+  "confidence": 0.9,
+  "evidence": [
+    { "path": "services/api/src/handler.ts", "line": 27, "snippet": "await repo.insert(payload)" },
+    { "path": "services/data/src/repo.ts",   "line": 4,  "snippet": "export async function insert(data) {" }
   ]
 }
 ```
 
-**`nodes/<node-id>.json`** — full manifest per node (see schema below)
+One-sided evidence → `candidate: true, confidence: 0.3`. No evidence → drop.
 
-**`scenarios/<scenario-id>.json`** — scenario state machine (see schema below)
+---
 
-**`ownership.json`** — `{ "<file-path>": "<node-id>", ... }`
+## Phase 5 — Three-View Scenario Extraction
 
-**`reverse-index.json`** — `{ "<node-id>": { "owned_files": [...], "key_files": [...], "scenario_refs": [...] } }`
+Three views, always separate. Never mix them.
+
+### Structure view
+Which nodes/interfaces/connections participate. Derived from locked manifests.
+
+### Behavior view (sequence diagram)
+Ordered execution steps. Derived from static code reading.
+
+Algorithm:
+1. Choose a confirmed inbound interface or entrypoint as seed
+2. Read the seed definition
+3. Walk calls in **lexical order** inside the function body
+4. Resolve each call using Phase 4 connection evidence
+5. Emit a step only when order is **explicit in code**
+6. When encountering `if/switch/catch/retry/async fan-out` → record branch/checkpoint, do not flatten
+7. Stop when: leaving repo scope / entering unresolved dynamic dispatch / confidence < 0.8
+
+**Behavior step:**
+```json
+{
+  "id": "b2",
+  "actor": "l1:api.create_user_handler",
+  "action": "calls repository insert",
+  "target": "l1:data.user_repo",
+  "confidence": 0.9,
+  "evidence": [{ "path": "services/api/src/handlers/create-user.ts", "line": 27, "snippet": "await repo.insert(payload)" }]
+}
+```
+
+### Data view (payloads)
+What values flow at each step. Derived from visible code artifacts only.
+
+Sources: parameter shapes, object literals, type/schema definitions, test fixtures, docs.
+Never invent examples.
+
+**Data step:**
+```json
+{
+  "step_ref": "b2",
+  "payload_shape": { "id": "string", "email": "string", "name": "string" },
+  "example": { "email": "user@example.com" },
+  "confidence": 0.8,
+  "evidence": [{ "path": "services/api/src/types/user.ts", "line": 5, "snippet": "type UserPayload = { id: string; email: string; name: string }" }]
+}
+```
+
+### Scenario schema
+
+```json
+{
+  "id": "scenario.create-user",
+  "name": "Create user flow",
+  "confidence": 0.86,
+  "candidate": false,
+  "structure_view": {
+    "nodes": ["l1:api.handler", "l1:data.repo"],
+    "connections": [{ "from": "l1:api.handler", "to": "l1:data.repo", "type": "internal_call" }]
+  },
+  "behavior_view": {
+    "steps": [
+      { "id": "b1", "actor": "l1:api.handler", "action": "validates input", "confidence": 0.9,
+        "evidence": [{ "path": "...", "line": 14, "snippet": "validate(payload)" }] },
+      { "id": "b2", "actor": "l1:api.handler", "action": "calls repo insert", "target": "l1:data.repo",
+        "confidence": 0.9, "evidence": [{ "path": "...", "line": 27, "snippet": "await repo.insert(payload)" }] }
+    ],
+    "checkpoints": [{ "label": "user persisted", "after_step": "b2", "confidence": 0.9,
+      "evidence": [{ "path": "...", "line": 27, "snippet": "await repo.insert(payload)" }] }],
+    "branches": [{ "label": "validation fails", "confidence": 0.8,
+      "evidence": [{ "path": "...", "line": 16, "snippet": "if (!valid) return error" }] }]
+  },
+  "data_view": {
+    "steps": [
+      { "step_ref": "b1", "payload_shape": { "email": "string", "name": "string" },
+        "example": null, "confidence": 0.8, "evidence": [{ "path": "...", "line": 12, "snippet": "const { email, name } = payload" }] },
+      { "step_ref": "b2", "payload_shape": { "id": "string", "email": "string", "name": "string" },
+        "example": { "email": "user@example.com" }, "confidence": 0.8,
+        "evidence": [{ "path": "...", "line": 5, "snippet": "type UserPayload = { id: string; email: string; name: string }" }] }
+    ]
+  }
+}
+```
+
+---
+
+## Phase 6 — Verification Pass
+
+Batch-verify all retained claims before writing manifests.
+
+Build a grep pattern from all retained symbols/paths:
+```bash
+rg -n --no-heading \
+  -e 'createUser' -e 'repo.insert' -e 'UserPayload' \
+  services/api/src packages/shared/src
+```
+
+**Drop** when: no evidence, verification grep misses entirely, supporting hypothesis was falsified.
+**Keep as candidate** (`confidence: 0.3`) when: one-sided connection, partial payload, plausible but unproven order.
+**Keep as verified** when: evidence exists + grep confirms + confidence ≥ 0.8.
+
+---
+
+## Phase 7 — Write Manifests
+
+Write to `.repo-alive/`:
+
+- `fingerprint.json` — `{ schema_version, git_head, generated_at, tool }`
+- `graph.json` — `{ nodes: [...], edges: [...] }` (summary level only)
+- `nodes/<id>.json` — full node manifest per node
+- `scenarios/<id>.json` — three-view scenario manifest
+- `ownership.json` — `{ "<file>": "<node-id>" }`
+- `reverse-index.json` — `{ "<node-id>": { owned_files, key_files, scenario_refs } }`
+- `state.json` — final state block (for incremental updates)
 
 ---
 
@@ -269,18 +425,17 @@ Create `.repo-alive/` and write:
 ```json
 {
   "schema_version": "1.0",
-  "kind": "l0_node|l1_node|l2_file",
   "id": "<slug>",
   "name": "<human name>",
   "level": "L0|L1|L2",
   "parent_id": null,
   "child_node_ids": [],
-  "repo_root": ".",
-  "root_path": "<relative path>",
+  "root_path": "<relative>",
   "language_mix": ["<lang>"],
   "analysis_status": "complete|partial",
   "generated_at": "<ISO>",
-  "fingerprint": { "git_head": "...", "owned_files_count": 0 },
+  "confidence": 0.0,
+  "candidate": false,
 
   "summary": "<one paragraph, evidence-grounded>",
   "responsibilities": ["<claim>"],
@@ -289,19 +444,15 @@ Create `.repo-alive/` and write:
   "key_files": [{ "path": "...", "reason": "..." }],
   "entrypoints": [{
     "kind": "server|cli|job|consumer|library",
-    "path": "...",
-    "symbol": "...",
-    "evidence": [{ "file": "...", "line": 0, "snippet": "..." }]
+    "path": "...", "symbol": "...",
+    "evidence": [{ "path": "...", "line": 0, "snippet": "..." }]
   }],
 
   "interfaces": {
-    "receives": [{ "id": "...", "kind": "http|cli|message|file|schedule|socket",
-      "name": "...", "shape": "...",
-      "evidence": [{ "file": "...", "line": 0, "snippet": "..." }] }],
+    "receives":   [{ "id": "...", "kind": "http|cli|message|file|schedule|socket", "name": "...", "shape": "...", "evidence": [...] }],
     "sends":      [...],
     "reads_from": [...],
     "writes_to":  [...],
-    "triggers":   [...],
     "exposes":    [...]
   },
 
@@ -311,130 +462,75 @@ Create `.repo-alive/` and write:
     "direction": "outbound|inbound",
     "label": "...",
     "confidence": 0.0,
-    "evidence": [{ "file": "...", "line": 0, "snippet": "..." }]
+    "candidate": false,
+    "evidence": [{ "path": "...", "line": 0, "snippet": "..." }]
   }],
 
-  "data_shapes": [{ "name": "...", "kind": "request|response|event|model", "defined_in": "..." }],
   "scenario_refs": ["<scenario-id>"],
-
+  "tainted_paths": [],
   "open_questions": [],
-  "unknown_interfaces": [],
-  "unknown_connections": [],
   "coverage_ratio": 1.0
 }
 ```
 
 ---
 
-## Scenario Manifest Schema
-
-```json
-{
-  "schema_version": "1.0",
-  "kind": "scenario",
-  "id": "<slug>",
-  "name": "<human name>",
-  "generated_at": "<ISO>",
-  "summary": "...",
-  "start_node": "<node-id>",
-  "node_refs": ["<node-id>"],
-  "tags": ["request|job|cli|sync|async"],
-
-  "steps": [{
-    "id": "step-N",
-    "index": 0,
-    "actor": "<node-id>",
-    "node": "<node-id>",
-    "action": "...",
-    "inputs": {},
-    "outputs": {},
-    "evidence": [{ "file": "...", "line": 0, "snippet": "..." }]
-  }],
-
-  "checkpoints": [{
-    "id": "checkpoint-<name>",
-    "after_step": "step-N",
-    "label": "...",
-    "state": {}
-  }],
-
-  "branches": [{
-    "id": "branch-<name>",
-    "from_checkpoint": "checkpoint-<name>",
-    "condition": "...",
-    "steps": [...]
-  }]
-}
-```
-
----
-
-## Phase 3 — Serve
+## Phase: Serve
 
 ```bash
 cd "$REPO_ROOT"
-# Install ws if needed
 if [ ! -d node_modules/ws ]; then
-  echo "Installing ws..."
-  npm install ws --no-save 2>/dev/null || npm install ws 2>/dev/null
+  npm install ws --no-save 2>/dev/null || npm install ws
 fi
-# Start server in background
 node "$(dirname "$0")/server.js" 4311 &
 SERVER_PID=$!
 sleep 1
-# Open canvas
 open http://localhost:4311 2>/dev/null || \
   xdg-open http://localhost:4311 2>/dev/null || \
-  echo "Open http://localhost:4311 in your browser"
-echo "Server PID: $SERVER_PID"
-echo "Stop with: kill $SERVER_PID"
+  echo "Open http://localhost:4311"
+echo "Server PID: $SERVER_PID  |  Stop: kill $SERVER_PID"
 ```
 
 ---
 
-## Phase 4 — Interact (per user question)
+## Phase: Interact
 
-When the user asks about a specific node:
+When user asks about a node:
+1. Read `.repo-alive/nodes/<node-id>.json`
+2. Read **only** files in `owned_files` (skip >64KB)
+3. Answer from manifest + owned source files
+4. Cite file:line for every claim
+5. If answer needs files outside this node's ownership: say so, offer to activate the peer node
 
-1. Identify the node ID from user's question (match against node names in graph.json)
-2. Read `.repo-alive/nodes/<node-id>.json`
-3. Read **only** files listed in `owned_files` (skip files >64KB)
-4. Answer from: manifest summary + interfaces + connections + owned source files
-5. Every answer must cite file:line evidence
-6. If the answer requires files outside this node's ownership: say so explicitly, offer to activate the peer node
-
-When the user asks to demonstrate a scenario:
-1. Identify scenario ID from graph.json's scenario list
-2. Read the scenario manifest
-3. Walk through steps, reading evidence files as needed
-4. For "what if X fails?" — identify the relevant checkpoint and branch, walk the branch steps
+When user asks to demonstrate a scenario:
+1. Read the scenario manifest (three views)
+2. Walk `behavior_view.steps`, reading evidence files per step
+3. For "what if X fails?" → find the checkpoint, walk the branch steps
+4. Show `data_view` payload at each step
 
 ---
 
 ## Incremental Update
 
-When files change (e.g., after a commit):
-
 ```bash
 CHANGED=$(git diff --name-only HEAD~1 2>/dev/null || echo "")
 ```
 
-1. Load `ownership.json`
-2. Map changed files → affected node IDs
-3. Regenerate only those node manifests
-4. If any changed file is a root manifest, entrypoint, or router → rerun L0/L1 discovery for its enclosing root
-5. Rerun scenarios that reference regenerated nodes
-6. Rewrite `graph.json`, `ownership.json`, `reverse-index.json`, `fingerprint.json`
-7. If >20% of nodes affected → full re-analysis
+1. Load `ownership.json` → map changed files to node IDs
+2. Regenerate only affected node manifests
+3. If changed file is a root manifest/entrypoint/router → rerun L0/L1 discovery for its enclosing root
+4. Regenerate scenarios referencing touched nodes
+5. Rewrite `graph.json`, `ownership.json`, `reverse-index.json`, `fingerprint.json`
+6. If >20% of nodes affected → full re-analysis
 
 ---
 
 ## Quality Gates
 
 Do not report completion until:
-- `.repo-alive/fingerprint.json` exists and matches current HEAD
-- `.repo-alive/graph.json` has ≥1 node
-- At least one `nodes/*.json` file exists
-- At least one `scenarios/*.json` file exists
+- `fingerprint.json` exists and matches current HEAD
+- `graph.json` has ≥1 node
+- ≥1 `nodes/*.json` exists
+- ≥1 `scenarios/*.json` exists with all three views
 - Server responds to `GET /graph`
 - At least one scenario plays over WebSocket without error
