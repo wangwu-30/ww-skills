@@ -495,18 +495,127 @@ echo "Server PID: $SERVER_PID  |  Stop: kill $SERVER_PID"
 
 ## Phase: Interact
 
-When user asks about a node:
-1. Read `.repo-alive/nodes/<node-id>.json`
-2. Read **only** files in `owned_files` (skip >64KB)
-3. Answer from manifest + owned source files
-4. Cite file:line for every claim
-5. If answer needs files outside this node's ownership: say so, offer to activate the peer node
+After the server starts, enter a **watch loop** for questions from the webpage.
 
-When user asks to demonstrate a scenario:
-1. Read the scenario manifest (three views)
-2. Walk `behavior_view.steps`, reading evidence files per step
-3. For "what if X fails?" → find the checkpoint, walk the branch steps
-4. Show `data_view` payload at each step
+### Watch loop
+
+```bash
+echo "Watching for questions from webpage..."
+while true; do
+  # Poll for pending question (fs.watch handles this server-side,
+  # but also check directly for reliability)
+  if [ -f "$DATA_DIR/pending.json" ]; then
+    PENDING=$(cat "$DATA_DIR/pending.json")
+    TYPE=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('type','query'))" <<< "$PENDING")
+    if [ "$TYPE" = "query" ]; then
+      # Node Q&A
+      handle_query
+    elif [ "$TYPE" = "trace" ]; then
+      # What-if path tracing
+      handle_trace
+    fi
+  fi
+  sleep 0.5
+done
+```
+
+### handle_query — node question answering
+
+When `.repo-alive/pending.json` has `type: "query"`:
+
+1. Read the pending question:
+   - `nodeId`: which node is being asked about
+   - `question`: the user's question
+
+2. Load the node manifest: `.repo-alive/nodes/<nodeId>.json`
+
+3. Load **only** the node's owned files (priority order):
+   - Files in `key_files` first (always include)
+   - Remaining `owned_files` sorted by size ascending
+   - Stop at 40,000 chars total
+   - Skip files >32KB individually
+
+4. Answer the question:
+   - Stay within the node's files only
+   - Cite every claim with `file:line`
+   - If the answer requires peer node files, say so explicitly
+
+5. Write the answer to `.repo-alive/answer.json`:
+   ```json
+   {
+     "questionId": "<from pending>",
+     "nodeId": "<nodeId>",
+     "text": "<answer markdown>",
+     "evidence": [{ "path": "...", "line": 0, "snippet": "..." }]
+   }
+   ```
+
+6. The server detects the file change and pushes to the webpage.
+
+7. Delete `.repo-alive/pending.json` to mark as handled.
+
+### handle_trace — what-if path tracing
+
+When `.repo-alive/pending.json` has `type: "trace"`:
+
+1. Read the pending trace request:
+   - `scenarioId`: which scenario
+   - `checkpointId`: where to fork from
+   - `condition`: the what-if condition (e.g. "worker crashes here")
+
+2. Load the scenario manifest: `.repo-alive/scenarios/<scenarioId>.json`
+
+3. Find the checkpoint in `behavior_view.checkpoints`
+
+4. Load files for ALL nodes in `scenario.structure_view.nodes`
+   (same size strategy as handle_query, 40,000 char total limit)
+
+5. Derive the new execution path:
+   - Starting from the checkpoint state
+   - Given the condition
+   - Walk the code to find what actually happens
+   - Each step must cite file:line evidence
+   - Mark steps as `"what_if": true`
+
+6. Write steps one by one to `.repo-alive/answer.json` as they are derived:
+   ```json
+   {
+     "type": "trace:start",
+     "scenarioId": "<id>",
+     "condition": "<condition>"
+   }
+   ```
+   Then for each step:
+   ```json
+   {
+     "type": "trace:step",
+     "step": {
+       "id": "wi-1",
+       "actor": "<node-id>",
+       "action": "<what happens>",
+       "what_if": true,
+       "confidence": 0.85,
+       "evidence": [{ "path": "...", "line": 0, "snippet": "..." }]
+     }
+   }
+   ```
+   Finally:
+   ```json
+   { "type": "trace:end" }
+   ```
+
+   Write each JSON object to the file and pause 300ms between steps
+   so the server can pick up each one and animate them onto the canvas.
+
+7. Delete `.repo-alive/pending.json`.
+
+### Alternative: server polling
+
+If the watch loop is not running, the server also exposes:
+- `GET /pending` — returns current pending question
+- `POST /answer` — Claude Code can POST the answer directly
+
+Use `POST /answer` for streaming: post each step immediately as it is derived.
 
 ---
 
