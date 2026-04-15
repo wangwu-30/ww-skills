@@ -1,0 +1,12 @@
+{
+  "name": "repo-alive-server",
+  "version": "1.0.0",
+  "description": "Local runtime server for the repo-alive skill",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.0.0"
+  }
+}
