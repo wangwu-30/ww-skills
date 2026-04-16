@@ -1,46 +1,32 @@
 /**
- * repo-alive client integration
- * Drop this script into any HTML canvas to make it data-driven.
- * Replaces hardcoded ROOT_NODES / ROOT_EDGES / DETAILS / STEPS / SWIM_ACTORS / SWIM_MAP
- * with live data from the repo-alive server.
- *
- * No framework. No build step. Works as a plain <script src="client.js">.
- *
- * The HTML canvas only needs to expose these optional hook functions:
- *   renderGraph()          — called after ROOT_NODES/ROOT_EDGES are populated
- *   openDetail(nodeId)     — called when a node is activated
- *   flowGoTo(stepIndex)    — called for each scenario step during playback
- *   resetPlayback()        — called at scenario:start
- *   buildSwimLane()        — called after SWIM_ACTORS/SWIM_MAP are ready
- *
- * The client also exposes window.repoAlive for manual control.
+ * repo-alive client.js
+ * Populates the canvas data stubs from the local repo-alive server.
+ * Drop into any repo-alive canvas HTML as <script src="client.js">.
+ * No framework. No build step.
  */
-
 (function () {
   "use strict";
 
   const SERVER = (typeof REPO_ALIVE_SERVER !== "undefined")
-    ? REPO_ALIVE_SERVER
-    : "http://localhost:4311";
-
+    ? REPO_ALIVE_SERVER : "http://localhost:4311";
   const WS_SERVER = SERVER.replace(/^http/, "ws");
 
   // ── state ──────────────────────────────────────────────────────────────────
-  const state = {
-    graph:            null,
-    activeNodeId:     null,
+  const RA = {
+    graph: null,
+    activeNodeId: null,
     activeScenarioId: null,
-    socket:           null,
-    stepBuffer:       [],   // scenario steps received so far
-    playing:          false,
+    socket: null,
+    sse: null,
   };
 
   // ── helpers ────────────────────────────────────────────────────────────────
-
-  function call(hook, ...args) {
-    if (typeof window[hook] === "function") {
-      try { window[hook](...args); } catch (e) { console.warn("[repo-alive]", hook, e); }
-    }
+  function hook(name, fn) {
+    const orig = window[name];
+    window[name] = function (...args) {
+      fn(...args);
+      if (typeof orig === "function") orig.apply(this, args);
+    };
   }
 
   async function get(path) {
@@ -59,282 +45,428 @@
     return r.json();
   }
 
+  // ── color helpers ──────────────────────────────────────────────────────────
+  const LEVEL_COLORS = { L0: "#58a6ff", L1: "#bc8cff", L2: "#3fb950" };
+  function levelColor(level) { return LEVEL_COLORS[level] || "#8b949e"; }
+
   // ── graph → canvas data structures ────────────────────────────────────────
+  // Compute DAG layers via topological sort from edges
+  function computeLayers(nodeIds, edges) {
+    const inDegree = {};
+    const adj = {};
+    nodeIds.forEach(id => { inDegree[id] = 0; adj[id] = []; });
+    edges.forEach(e => {
+      if (inDegree[e.to] !== undefined) inDegree[e.to]++;
+      if (adj[e.from]) adj[e.from].push(e.to);
+    });
+    const layers = {};
+    const queue = nodeIds.filter(id => inDegree[id] === 0);
+    queue.forEach(id => { layers[id] = 0; });
+    while (queue.length) {
+      const id = queue.shift();
+      (adj[id] || []).forEach(child => {
+        layers[child] = Math.max(layers[child] || 0, (layers[id] || 0) + 1);
+        if (--inDegree[child] === 0) queue.push(child);
+      });
+    }
+    // Any node not reached gets layer 0
+    nodeIds.forEach(id => { if (layers[id] === undefined) layers[id] = 0; });
+    return layers;
+  }
 
-  function graphToCanvasData(graph) {
-    // Populate the globals the existing HTML rendering code expects.
-    // We produce a minimal shape; the canvas code reads what it needs.
-
+  function applyGraph(graph) {
     window.ROOT_NODES = {};
     window.ROOT_EDGES = [];
+    window.CONTAINER_SIZES = {};
 
-    for (const n of (graph.nodes || [])) {
+    const nodeIds = (graph.nodes || []).map(n => n.id);
+    const edges   = graph.edges || [];
+
+    // Compute layers from edge topology
+    const layers = computeLayers(nodeIds, edges);
+
+    // Assign col within each layer
+    const layerGroups = {};
+    nodeIds.forEach(id => {
+      const l = layers[id] || 0;
+      (layerGroups[l] = layerGroups[l] || []).push(id);
+    });
+
+    (graph.nodes || []).forEach(n => {
+      const layer = layers[n.id] || 0;
+      const col   = (layerGroups[layer] || []).indexOf(n.id);
+
       window.ROOT_NODES[n.id] = {
-        id:       n.id,
-        label:    { zh: n.name, en: n.name },
-        color:    levelColor(n.level),
-        layer:    levelToLayer(n.level, n.id, graph.nodes),
-        col:      0,   // recomputed by layout algorithm
-        tip:      { zh: n.summary || "", en: n.summary || "" },
-        children: n.child_node_ids?.length ? [] : null,   // populated on drill-down
+        id:         n.id,
+        label:      { zh: n.name, en: n.name },
+        color:      levelColor(n.level || "L0"),
+        layer,
+        col,
+        tip:        { zh: n.summary || n.name, en: n.summary || n.name },
+        children:   (n.child_node_ids && n.child_node_ids.length) ? [] : null,
         childEdges: null,
-        content:  null,
+        content:    null,
       };
-    }
 
-    // assign col within each layer
-    const byLayer = {};
-    for (const n of Object.values(window.ROOT_NODES)) {
-      (byLayer[n.layer] = byLayer[n.layer] || []).push(n);
-    }
-    for (const nodes of Object.values(byLayer)) {
-      nodes.forEach((n, i) => { n.col = i; });
-    }
+      if (n.child_node_ids && n.child_node_ids.length) {
+        const childCount = n.child_node_ids.length;
+        window.CONTAINER_SIZES[n.id] = {
+          w: Math.max(140, childCount * 100 + 60),
+          h: childCount > 3 ? 170 : 140,
+        };
+      } else {
+        window.CONTAINER_SIZES[n.id] = { w: 140, h: 48 };
+      }
+    });
 
-    for (const e of (graph.edges || [])) {
+    // Edges
+    (graph.edges || []).forEach(e => {
       window.ROOT_EDGES.push({
         from:  e.from,
         to:    e.to,
-        label: { zh: e.label || e.type, en: e.label || e.type },
-        style: e.type === "spawn" || e.type === "call" ? "solid" : "dash",
+        label: { zh: e.label || e.type || "", en: e.label || e.type || "" },
+        style: (e.type === "spawn" || e.type === "call") ? "solid" : "dash",
       });
+    });
+
+    // Pick first scenario
+    if (graph.scenarios && graph.scenarios[0]) {
+      RA.activeScenarioId = graph.scenarios[0];
+      if (window.STATE) window.STATE.activeScenarioId = graph.scenarios[0];
     }
+
+    // Re-render
+    if (typeof renderGraph === "function") renderGraph();
+    if (typeof buildSidebar === "function") buildSidebar();
+    if (typeof updateBreadcrumb === "function") updateBreadcrumb();
   }
 
-  function levelColor(level) {
-    return { L0: "#58a6ff", L1: "#bc8cff", L2: "#3fb950" }[level] || "#8b949e";
-  }
-
-  function levelToLayer(level, id, nodes) {
-    // Use topological position based on connections in graph if available,
-    // otherwise fall back to level number.
-    return { L0: 0, L1: 1, L2: 2 }[level] ?? 0;
-  }
-
-  // ── node manifest → DETAILS entry ─────────────────────────────────────────
-
-  function nodeToDetails(node) {
+  // ── node manifest → DETAILS + child nodes ─────────────────────────────────
+  function applyNodeManifest(nodeId, manifest) {
+    // Build DETAILS entry
     const subs = [];
 
-    // key files as sub-cards
-    for (const kf of (node.key_files || []).slice(0, 6)) {
+    // Key files as sub-cards
+    (manifest.key_files || []).slice(0, 4).forEach(kf => {
       subs.push({
-        id:    kf.path.replace(/[^a-z0-9]/gi, "-"),
-        title: kf.path.split("/").pop(),
-        file:  kf.path,
-        line:  null,
+        id:         kf.path.replace(/[^a-z0-9]/gi, "-"),
+        title:      kf.path.split("/").pop(),
+        file:       kf.path,
+        line:       null,
         confidence: "verified",
-        desc:  { zh: kf.reason, en: kf.reason },
-        code:  null,
+        desc:       { zh: kf.reason, en: kf.reason },
+        code:       null,
       });
-    }
+    });
 
-    // interfaces as sub-cards
-    const allIfaces = [
-      ...(node.interfaces?.receives  || []),
-      ...(node.interfaces?.sends     || []),
-      ...(node.interfaces?.exposes   || []),
-    ].slice(0, 8);
+    // Interfaces as sub-cards
+    const ifaces = [
+      ...(manifest.interfaces?.receives  || []),
+      ...(manifest.interfaces?.sends     || []),
+      ...(manifest.interfaces?.exposes   || []),
+    ].slice(0, 6);
 
-    for (const iface of allIfaces) {
+    ifaces.forEach(iface => {
       const ev = (iface.evidence || [])[0];
       subs.push({
-        id:    iface.id,
-        title: iface.name,
-        file:  ev?.file || "",
-        line:  ev?.line || null,
+        id:         iface.id || iface.name,
+        title:      iface.name,
+        file:       ev?.path || "",
+        line:       ev?.line || null,
         confidence: ev ? "verified" : "candidate",
-        desc:  { zh: `${iface.kind}: ${iface.shape || ""}`, en: `${iface.kind}: ${iface.shape || ""}` },
-        code:  ev ? `<span class="cc">// ${ev.file}:${ev.line}</span>\n${escHtml(ev.snippet || "")}` : null,
+        desc:       { zh: `${iface.kind}: ${iface.shape || ""}`, en: `${iface.kind}: ${iface.shape || ""}` },
+        code:       ev ? `<span class="cc">// ${ev.path}:${ev.line}</span>\n${escHtml(ev.snippet || "")}` : null,
       });
-    }
+    });
 
-    return {
-      desc: { zh: node.summary || "", en: node.summary || "" },
+    window.DETAILS = window.DETAILS || {};
+    window.DETAILS[nodeId] = {
+      desc: { zh: manifest.summary || "", en: manifest.summary || "" },
       subs,
     };
+
+    // If this node has children, build child node objects
+    if (manifest.child_node_ids && manifest.child_node_ids.length && window.ROOT_NODES[nodeId]) {
+      // We'll populate children lazily when they're loaded
+      // For now mark as expandable
+      window.ROOT_NODES[nodeId].children = manifest.child_node_ids.map(cid => ({
+        id:         cid,
+        label:      { zh: cid, en: cid },
+        color:      levelColor("L1"),
+        layer:      0,
+        col:        manifest.child_node_ids.indexOf(cid),
+        tip:        { zh: "", en: "" },
+        children:   null,
+        childEdges: null,
+        content:    null,
+      }));
+      window.ROOT_NODES[nodeId].childEdges = [];
+    }
   }
 
   function escHtml(s) {
-    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
 
   // ── scenario → STEPS / SWIM_ACTORS / SWIM_MAP ─────────────────────────────
+  function applyScenario(scenario) {
+    const bv = scenario.behavior_view || {};
+    const dv = scenario.data_view || {};
+    const steps = bv.steps || [];
+    const dataSteps = dv.steps || [];
 
-  function scenarioToSteps(scenario) {
-    window.STEPS = (scenario.steps || []).map(s => ({
-      title:  { zh: s.action, en: s.action },
-      actor:  s.actor,
-      nodes:  [s.node].filter(Boolean),
-      edges:  [],
-      confidence: "verified",
-      payload: formatPayload(s),
+    // Build a map from step_ref → payload
+    const payloadMap = {};
+    dataSteps.forEach(ds => { payloadMap[ds.step_ref] = ds; });
+
+    window.STEPS = steps.map((s, i) => ({
+      title:      { zh: s.action || s.title?.zh || "", en: s.action || s.title?.en || "" },
+      actor:      s.actor,
+      nodes:      [s.node || s.actor].filter(Boolean),
+      edges:      [],
+      confidence: s.confidence >= 0.8 ? "verified" : "inferred",
+      file:       (s.evidence || [])[0]?.path || null,
+      line:       (s.evidence || [])[0]?.line || null,
+      payload:    buildPayloadHtml(s, payloadMap[s.id]),
     }));
 
-    const actorIds = [...new Set((scenario.steps || []).map(s => s.actor).filter(Boolean))];
+    // Swim actors from structure_view nodes
+    const actorIds = [...new Set(steps.map(s => s.actor).filter(Boolean))];
     window.SWIM_ACTORS = actorIds.map(id => ({
       id,
       label: { zh: id, en: id },
-      color: levelColor("L0"),
+      color: (window.ROOT_NODES[id]?.color) || levelColor("L0"),
     }));
 
-    window.SWIM_MAP = (scenario.steps || []).map(s => ({
-      actor: s.actor,
-      target: s.node !== s.actor ? s.node : undefined,
+    window.SWIM_MAP = steps.map(s => ({
+      actor:  s.actor,
+      target: (s.target && s.target !== s.actor) ? s.target : undefined,
     }));
+
+    // Store for what-if
+    if (window.STATE) window.STATE._activeScenario = scenario;
+    if (typeof buildSwimLane === "function") {
+      window.STATE && (window.STATE.swimBuilt = false);
+    }
   }
 
-  function formatPayload(step) {
+  function buildPayloadHtml(step, dataStep) {
+    const parts = [];
     const ev = (step.evidence || [])[0];
-    const lines = [];
-    if (step.inputs  && Object.keys(step.inputs).length)
-      lines.push(`<span class="cc">// inputs</span>\n${escHtml(JSON.stringify(step.inputs, null, 2))}`);
-    if (step.outputs && Object.keys(step.outputs).length)
-      lines.push(`<span class="cc">// outputs</span>\n${escHtml(JSON.stringify(step.outputs, null, 2))}`);
-    if (ev)
-      lines.push(`<span class="cc">// ${ev.file}:${ev.line}</span>\n<span class="cs">${escHtml(ev.snippet || "")}</span>`);
-    return lines.join("\n") || `<span class="cc">// ${step.action}</span>`;
+    if (ev) {
+      parts.push(`<span class="cc">// ${ev.path}:${ev.line}</span>`);
+      if (ev.snippet) parts.push(`<span class="cs">${escHtml(ev.snippet)}</span>`);
+    }
+    if (dataStep?.payload_shape) {
+      parts.push(`<span class="cc">// payload shape</span>`);
+      parts.push(escHtml(JSON.stringify(dataStep.payload_shape, null, 2)));
+    }
+    if (dataStep?.example) {
+      parts.push(`<span class="cc">// example</span>`);
+      parts.push(escHtml(JSON.stringify(dataStep.example, null, 2)));
+    }
+    if (!parts.length) parts.push(`<span class="cc">// ${step.action}</span>`);
+    return parts.join("\n");
   }
 
   // ── public API ─────────────────────────────────────────────────────────────
-
   async function loadGraph() {
     try {
       const graph = await get("/graph");
-      state.graph = graph;
-      graphToCanvasData(graph);
-      call("renderGraph");
-
-      // pre-populate DETAILS for nodes already in graph summary
-      for (const n of (graph.nodes || [])) {
-        if (n.summary) {
-          window.DETAILS = window.DETAILS || {};
-          window.DETAILS[n.id] = { desc: { zh: n.summary, en: n.summary }, subs: [] };
-        }
-      }
-
-      // load first scenario if available
-      if (graph.scenarios?.[0]) {
-        state.activeScenarioId = graph.scenarios[0];
-      }
-
-      console.log("[repo-alive] graph loaded:", (graph.nodes || []).length, "nodes");
+      RA.graph = graph;
+      applyGraph(graph);
+      console.log("[repo-alive] graph loaded:", (graph.nodes||[]).length, "nodes");
     } catch (e) {
-      console.error("[repo-alive] loadGraph failed:", e.message);
+      console.warn("[repo-alive] loadGraph failed:", e.message);
     }
   }
 
-  async function activateNode(nodeId) {
-    state.activeNodeId = nodeId;
+  async function loadNodeManifest(nodeId) {
+    RA.activeNodeId = nodeId;
     try {
-      const node = await get(`/node/${encodeURIComponent(nodeId)}`);
-      window.DETAILS = window.DETAILS || {};
-      window.DETAILS[nodeId] = nodeToDetails(node);
-
-      // update scenario if node has one
-      if (node.scenario_refs?.[0]) state.activeScenarioId = node.scenario_refs[0];
-
-      call("openDetail", nodeId);
+      const manifest = await get(`/node/${encodeURIComponent(nodeId)}`);
+      applyNodeManifest(nodeId, manifest);
+      if (manifest.scenario_refs?.[0]) {
+        RA.activeScenarioId = manifest.scenario_refs[0];
+        if (window.STATE) window.STATE.activeScenarioId = manifest.scenario_refs[0];
+      }
+      return manifest;
     } catch (e) {
-      console.error("[repo-alive] activateNode failed:", e.message);
+      console.warn("[repo-alive] loadNodeManifest failed:", nodeId, e.message);
+      return null;
     }
   }
 
-  async function playScenario(scenarioId, branchId) {
-    const sid = scenarioId || state.activeScenarioId;
-    if (!sid) { console.warn("[repo-alive] no active scenario"); return; }
-
-    // fetch full scenario to populate STEPS/SWIM
+  async function loadScenario(scenarioId) {
     try {
-      const scenario = await get(`/scenario/${encodeURIComponent(sid)}`);
-      scenarioToSteps(scenario);
-      call("buildSwimLane");
-    } catch (_) {}
+      const scenario = await get(`/scenario/${encodeURIComponent(scenarioId)}`);
+      applyScenario(scenario);
+      console.log("[repo-alive] scenario loaded:", scenario.name);
+      return scenario;
+    } catch (e) {
+      console.warn("[repo-alive] loadScenario failed:", scenarioId, e.message);
+      return null;
+    }
+  }
 
-    if (state.socket) { state.socket.close(); state.socket = null; }
-
-    let wsUrl = `${WS_SERVER}/ws?scenario=${encodeURIComponent(sid)}`;
-    if (branchId) wsUrl += `&branch=${encodeURIComponent(branchId)}`;
-
-    const ws = new WebSocket(wsUrl);
-    state.socket = ws;
-    state.stepBuffer = [];
-    state.playing = true;
-
-    ws.onopen  = () => console.log("[repo-alive] WS connected");
-    ws.onerror = e  => console.error("[repo-alive] WS error", e);
-    ws.onclose = ()  => { state.playing = false; };
-
-    ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "scenario:start") {
-        call("resetPlayback");
-      } else if (msg.type === "scenario:step") {
-        state.stepBuffer.push(msg.step);
-        // find index in STEPS array
-        const idx = (window.STEPS || []).findIndex(s =>
-          s.title?.en === msg.step.action || s.title?.zh === msg.step.action);
-        call("flowGoTo", idx >= 0 ? idx : state.stepBuffer.length - 1);
-      } else if (msg.type === "scenario:end") {
-        state.playing = false;
-      } else if (msg.type === "error") {
-        console.error("[repo-alive] scenario error:", msg.error);
-      }
+  // ── SSE for real-time updates (Q&A answers, trace steps) ──────────────────
+  function connectSSE() {
+    if (RA.sse) return;
+    RA.sse = new EventSource(SERVER + "/events");
+    RA.sse.onmessage = e => {
+      try { handleServerMessage(JSON.parse(e.data)); } catch (_) {}
+    };
+    RA.sse.onerror = () => {
+      RA.sse = null;
+      setTimeout(connectSSE, 3000);
     };
   }
 
-  async function branchScenario(branchId) {
-    const sid = state.activeScenarioId;
-    if (!sid) return;
-    try {
-      const { sessionId } = await post("/branch", { scenarioId: sid, branchId });
-      if (state.socket) { state.socket.close(); state.socket = null; }
-      const ws = new WebSocket(`${WS_SERVER}/ws?session=${encodeURIComponent(sessionId)}`);
-      state.socket = ws;
-      state.playing = true;
-      ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "scenario:step") {
-          const idx = state.stepBuffer.length;
-          state.stepBuffer.push(msg.step);
-          call("flowGoTo", idx);
+  function handleServerMessage(msg) {
+    if (msg.type === "thinking") {
+      const ans = document.getElementById("qa-answer");
+      if (ans) { ans.textContent = ""; ans.classList.add("thinking"); }
+      const btn = document.getElementById("qa-send");
+      if (btn) btn.disabled = true;
+    }
+    if (msg.type === "answer") {
+      const ans = document.getElementById("qa-answer");
+      if (ans) {
+        ans.classList.remove("thinking");
+        ans.innerHTML = renderMarkdown(msg.text || "");
+        if (msg.evidence?.length) {
+          ans.innerHTML += "<div style='margin-top:6px'>" +
+            msg.evidence.map(e => `<span class="qa-evidence">${e.path}:${e.line}</span>`).join("") +
+            "</div>";
         }
-      };
-    } catch (e) { console.error("[repo-alive] branchScenario failed:", e.message); }
+      }
+      const btn = document.getElementById("qa-send");
+      if (btn) btn.disabled = false;
+    }
+    if (msg.type === "trace:start") {
+      showToast("正在推演执行路径... / Tracing path...");
+    }
+    if (msg.type === "trace:step") {
+      renderWhatIfStep(msg.step);
+    }
   }
 
-  async function askNode(question, nodeId) {
-    const nid = nodeId || state.activeNodeId;
-    if (!nid) return null;
+  function renderMarkdown(text) {
+    const esc = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    return esc
+      .split("`").map((p,i) => i%2===1
+        ? `<code style="background:var(--bg3);padding:1px 4px;border-radius:3px;font-size:10px">${p}</code>`
+        : p).join("")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\n/g, "<br>");
+  }
+
+  function renderWhatIfStep(step) {
+    const tl = document.getElementById("flow-timeline");
+    if (!tl) return;
+    const div = document.createElement("div");
+    div.className = "flow-step step-whatif";
+    div.innerHTML = `<div class="step-num" style="background:var(--orange);border-color:var(--orange);color:#020617">?</div>
+      <div class="step-body">
+        <div class="step-title" style="color:var(--orange)">${step.action || ""}</div>
+        <div class="step-desc">${step.actor || ""} — what-if</div>
+      </div>`;
+    tl.appendChild(div);
+    div.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function showToast(msg) {
+    const t = document.createElement("div");
+    t.style.cssText = "position:fixed;top:60px;left:50%;transform:translateX(-50%);" +
+      "background:rgba(227,179,65,.15);border:1px solid var(--orange);" +
+      "border-radius:8px;padding:8px 16px;font-size:11px;color:var(--orange);" +
+      "z-index:200;pointer-events:none;";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+  }
+
+  // ── Q&A send ──────────────────────────────────────────────────────────────
+  async function qaSend() {
+    const input = document.getElementById("qa-input");
+    const question = input?.value?.trim();
+    if (!question) return;
+    const nodeId = RA.activeNodeId || window.STATE?.selectedNodeId;
+    if (!nodeId) {
+      const ans = document.getElementById("qa-answer");
+      if (ans) ans.textContent = "请先点击一个节点 / Click a node first";
+      return;
+    }
+    input.value = "";
+    const ans = document.getElementById("qa-answer");
+    if (ans) { ans.textContent = ""; ans.classList.add("thinking"); }
     try {
-      const ctx = await post("/query", { nodeId: nid, question });
-      return ctx;
-    } catch (e) { console.error("[repo-alive] askNode failed:", e.message); return null; }
+      await post("/ask", { type: "query", nodeId, question });
+    } catch (e) {
+      if (ans) { ans.classList.remove("thinking"); ans.textContent = "Cannot reach server"; }
+    }
   }
+  window.qaSend = qaSend;
 
-  // ── DOM event wiring ───────────────────────────────────────────────────────
-  // Supports data-node-id, data-action="play-scenario", data-branch-id attributes
+  // ── What-if ───────────────────────────────────────────────────────────────
+  async function traceWhatIf() {
+    const input = document.getElementById("trace-whatif-input");
+    const condition = input?.value?.trim();
+    if (!condition) return;
+    const scenarioId = window.STATE?._activeScenario?.id || RA.activeScenarioId;
+    const checkpointId = window.STATE?._pendingCheckpointId;
+    try {
+      await post("/ask", { type: "trace", scenarioId, checkpointId, condition });
+      hideWhatIf();
+    } catch (_) { hideWhatIf(); }
+  }
+  window.traceWhatIf = traceWhatIf;
 
-  document.addEventListener("click", async (e) => {
-    const nodeEl   = e.target.closest("[data-node-id]");
-    const playEl   = e.target.closest("[data-action='play-scenario']");
-    const branchEl = e.target.closest("[data-branch-id]");
+  function hideWhatIf() {
+    document.getElementById("trace-whatif")?.classList.remove("visible");
+  }
+  window.hideWhatIf = hideWhatIf;
 
-    if (nodeEl)   { await activateNode(nodeEl.getAttribute("data-node-id")); return; }
-    if (playEl)   { await playScenario(); return; }
-    if (branchEl) { await branchScenario(branchEl.getAttribute("data-branch-id")); return; }
+  // ── Hook into openDetail to load manifest on demand ───────────────────────
+  const _origOpenDetail = window.openDetail;
+  window.openDetail = async function (id) {
+    RA.activeNodeId = id;
+    // Load manifest if not already in DETAILS
+    if (!window.DETAILS?.[id]) {
+      await loadNodeManifest(id);
+    }
+    if (typeof _origOpenDetail === "function") _origOpenDetail(id);
+  };
+
+  // ── Hook into flowTogglePlay to load scenario ─────────────────────────────
+  const _origFlowTogglePlay = window.flowTogglePlay;
+  window.flowTogglePlay = async function () {
+    const sid = window.STATE?.activeScenarioId || RA.activeScenarioId;
+    if (sid && !window.STATE?._activeScenario) {
+      await loadScenario(sid);
+    }
+    if (typeof _origFlowTogglePlay === "function") _origFlowTogglePlay();
+  };
+
+  // ── Enter key for Q&A ─────────────────────────────────────────────────────
+  document.addEventListener("keydown", e => {
+    if (e.key === "Enter" && document.activeElement?.id === "qa-input") qaSend();
   });
 
-  // ── expose ─────────────────────────────────────────────────────────────────
+  // ── Expose public API ─────────────────────────────────────────────────────
+  window.repoAlive = { loadGraph, loadNodeManifest, loadScenario, connectSSE, RA };
 
-  window.repoAlive = { loadGraph, activateNode, playScenario, branchScenario, askNode, state };
-
-  // ── auto-init ──────────────────────────────────────────────────────────────
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", loadGraph);
-  } else {
-    loadGraph();
+  // ── Auto-init ─────────────────────────────────────────────────────────────
+  async function init() {
+    connectSSE();
+    await loadGraph();
+    // Pre-load first scenario if available
+    if (RA.activeScenarioId) await loadScenario(RA.activeScenarioId);
   }
 
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
