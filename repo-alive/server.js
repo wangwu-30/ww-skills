@@ -25,7 +25,11 @@ const ROOT      = path.resolve(process.env.REPO_ALIVE_ROOT || process.cwd());
 const DATA_DIR  = path.join(ROOT, ".repo-alive");
 const NODE_DIR  = path.join(DATA_DIR, "nodes");
 const SCEN_DIR  = path.join(DATA_DIR, "scenarios");
-const UI_FILE   = path.join(ROOT, "index.html");
+// Look for canvas HTML: project's index.html first, then skill's own canvas.html
+const SKILL_DIR = path.dirname(fileURLToPath(import.meta.url));
+const UI_FILE   = fs.existsSync(path.join(ROOT, "index.html"))
+  ? path.join(ROOT, "index.html")
+  : path.join(SKILL_DIR, "canvas.html");
 const PENDING   = path.join(DATA_DIR, "pending.json");
 const ANSWER    = path.join(DATA_DIR, "answer.json");
 
@@ -171,6 +175,14 @@ const server = http.createServer(async (req, res) => {
     if (!fs.existsSync(UI_FILE)) return res.writeHead(200, {"Content-Type":"text/html"}) && res.end(fallbackUI());
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     return res.end(fs.readFileSync(UI_FILE, "utf8"));
+  }
+
+  // Serve client.js from skill directory (canvas.html loads this)
+  if (meth === "GET" && pth === "/client.js") {
+    const clientPath = path.join(SKILL_DIR, "client.js");
+    if (!fs.existsSync(clientPath)) return j(res, 404, { error: "client.js not found" });
+    res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8" });
+    return res.end(fs.readFileSync(clientPath, "utf8"));
   }
 
   // Graph

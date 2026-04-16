@@ -478,19 +478,34 @@ Write to `.repo-alive/`:
 ## Phase: Serve
 
 ```bash
-# Resolve skill directory (where server.js lives) — robust across all shells
-SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+# In Claude Code, $0 is the shell binary, not the skill file.
+# The skill directory is always at this known path:
+SKILL_DIR="$HOME/.claude/skills/repo-alive"
 
-# Install ws in the skill directory if missing (server.js resolves modules from there)
+# Install ws in the skill directory if missing
 if [ ! -d "$SKILL_DIR/node_modules/ws" ]; then
-  echo "Installing ws in skill directory..."
+  echo "Installing ws..."
   (cd "$SKILL_DIR" && npm install ws --no-save 2>/dev/null || npm install ws)
 fi
 
-# Start server — pass REPO_ROOT via env so server.js uses the correct project
+# Kill any existing server on 4311
+lsof -ti:4311 | xargs kill -9 2>/dev/null || true
+sleep 0.3
+
+# Start server — REPO_ALIVE_ROOT tells server.js which project to serve
 REPO_ALIVE_ROOT="$REPO_ROOT" node "$SKILL_DIR/server.js" 4311 &
 SERVER_PID=$!
-sleep 1
+sleep 1.5
+
+# Verify it started with the right project
+curl -s http://localhost:4311/graph | python3 -c "
+import json,sys
+try:
+  d=json.load(sys.stdin)
+  print('✓ Server running, project nodes:', len(d.get('nodes',[])))
+except:
+  print('✗ Server not responding')
+" 2>/dev/null || echo "Server starting..."
 
 open "http://localhost:4311" 2>/dev/null ||   xdg-open "http://localhost:4311" 2>/dev/null ||   echo "Open http://localhost:4311"
 echo "Server PID: $SERVER_PID  |  Stop: kill $SERVER_PID"
