@@ -1,6 +1,6 @@
 # ww-skills
 
-Claude Code skills for codebase analysis and developer tooling.
+Claude Code skills for codebase analysis, developer tooling, and rigorous design reasoning.
 
 ## Prerequisites
 
@@ -55,6 +55,22 @@ Makes any codebase self-explanatory. Runs an uncertainty-reduction analysis loop
 
 ---
 
+### [force-thinker](./force-thinker/skill.md)
+
+Rigorous design reasoning kernel. Forces typed inputs (FACT/GOAL/HARD_CONSTRAINT/ASSUMPTION), derives obligations and forbidden states, generates candidate plans as witnesses, then commits or refuses selection cleanly. Works on any design problem.
+
+**State machine:** `UNDER-CONSTRAINED` → `NEED-EVIDENCE` → `MULTIPLE-VALID-PLANS` → `READY-TO-COMMIT`
+
+**Usage:**
+```
+/force-thinker              — interactive elicitation mode
+/force-thinker <problem>    — start with a seed description
+```
+
+**Use when:** "help me think through this", "is this design sound", "what are the tradeoffs", "I need to make a decision about X"
+
+---
+
 <!-- AGENT-MANIFEST
 {
   "repo": "https://github.com/wangwu-30/ww-skills",
@@ -92,6 +108,21 @@ Makes any codebase self-explanatory. Runs an uncertainty-reduction analysis loop
         { "flag": "--html",   "description": "[EXPERIMENTAL] analyze then serve HTML canvas on localhost:4311" }
       ],
       "notes": "node_modules/ is gitignored. npm install runs automatically in --html mode."
+    },
+    {
+      "name": "force-thinker",
+      "version": "0.0.1",
+      "invoke": "/force-thinker",
+      "skill_file": "force-thinker/skill.md",
+      "install_dir": "~/.claude/skills/force-thinker",
+      "install_cmd": "git clone https://github.com/wangwu-30/ww-skills /tmp/ww-skills && cp -r /tmp/ww-skills/force-thinker ~/.claude/skills/force-thinker",
+      "runtime": "Claude Code",
+      "prerequisites": { "required": ["Claude Code CLI"] },
+      "files": ["force-thinker/skill.md"],
+      "modes": [
+        { "flag": "",          "description": "interactive elicitation mode" },
+        { "flag": "<problem>", "description": "start with a seed description" }
+      ]
     }
   ]
 }
