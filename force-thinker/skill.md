@@ -1,11 +1,14 @@
 ---
 name: force-thinker
-version: 0.0.5
+version: 0.0.6
 description: |
   Rigorous design reasoning kernel. Forces typed inputs, derives obligations
   and forbidden states, generates candidate plans as witnesses, verifies, then
   commits or refuses selection cleanly. Works on any design problem: system
   architecture, product decisions, technical tradeoffs, org design.
+
+  DISCOVERY phase is conversational — natural language dialogue, no ledger shown.
+  Structure surfaces in FORMALIZATION once information is sufficient.
 
   Usage:
     /force-thinker              — interactive elicitation mode
@@ -21,248 +24,232 @@ allowed-tools:
   - Bash
 ---
 
-## What this skill does
-
-Applies the Design Kernel reasoning loop to any design problem. Does not jump to solutions. Forces:
-
-1. Typed inputs — facts, goals, constraints, assumptions
-2. Derived obligations and forbidden states
-3. Candidate plans as witnesses
-4. Verification (static checks + finite experiments)
-5. Selection or explicit refusal
-
----
-
 ## Work modes
 
-Every response declares exactly one mode at the top. Mode tells the user how much weight to place on the output.
+每轮输出声明一个模式（放在末尾一行，不放第一行）：
 
-- **DISCOVERY** — extracting and typing inputs; asking elicitation questions; everything here is scaffolding, may be revised
-- **FORMALIZATION** — deriving obligations/forbidden states; generating candidate plans; this is structural and load-bearing
-- **REVIEW** — running V0/V1 checks; selecting or refusing; producing the final iteration log
+- **DISCOVERY** — 对话式引导；背后在提取 source ledger 但不展示；一切都是草稿
+- **FORMALIZATION** — 亮出完整结构；推导 OB/FS；生成候选方案；这是结构性内容
+- **REVIEW** — 运行 V0/V1 检查；选择或拒绝；产出最终迭代日志
 
-Mode transitions are explicit and announced. A single response stays in one mode. If the natural response crosses a boundary, stop at the boundary, announce the switch, and continue in the next turn.
+模式切换显式声明。单轮不跨模式。
 
-**COMMENTARY is not a mode.** It is an inline annotation attached to any agent-invented abstraction. See Noun Budget below.
+**COMMENTARY 不是模式。** 它是 noun budget 的内联注释形式，附在每个 agent 自造抽象后面。
 
 ---
 
 ## Noun budget
 
-Every response may introduce at most **2 agent-invented abstractions** (named concepts the agent coins that are not already present in the user's input, domain vocabulary, or established typed items).
+每轮最多引入 **2 个 agent 自造抽象**（agent 自己发明的命名概念，不包括用户带来的词、领域名词、方案标签 Plan A/B/C、类型名 GOAL/OB/FS 等）。
 
-User-supplied terms, domain nouns, plan labels (Plan A/B/C), and typed category names (GOAL, OB, FS...) do not count against the budget.
-
-Each agent-invented abstraction must be immediately annotated inline:
+每个自造抽象必须立即内联注释：
 
 ```
-[TERM: <name>]
-  Replaces: <plain-language phrase this replaces>
-  Why not existing: <why no current term covers it>
-  Deletable if: <condition under which this folds back>
+[TERM: <名称>]
+  Replaces: <它替代的白话说法>
+  Why not existing: <为什么现有术语不够用>
+  Deletable if: <什么条件下可以折叠回去>
 ```
 
-If a response would naturally require more than 2 new abstractions:
-1. Pick the 2 highest-leverage ones, annotate them
-2. Defer the rest, note explicitly what was deferred and why
-
-Cognitive debt from unchecked abstraction proliferation is a design defect, not a feature.
+超过 2 个时：选最高价值的 2 个，其余显式标注为"已推迟"并说明原因。
 
 ---
 
 ## State machine
 
-Every response also declares exactly one state:
+每轮同时声明一个状态：
 
-- **UNDER-CONSTRAINED** — not enough to derive a valid plan space
-- **UNSAT** — hard inputs conflict; no valid plan until resolved
-- **NEED-EVIDENCE** — blocked from committing: either (a) candidate plans exist but critical hypotheses are under-supported, or (b) one or more OBs/FSs/ASSUMPTIONs lack a required test and cannot be verified
-- **MULTIPLE-VALID-PLANS** — multiple valid plans, ranking basis missing
-- **READY-TO-COMMIT** — one plan selected, all hard gates pass, remaining uncertainty explicit
+- **UNDER-CONSTRAINED** — 信息不足，无法推导有效方案空间
+- **UNSAT** — 硬输入冲突，无有效方案直到冲突解决
+- **NEED-EVIDENCE** — 被阻塞：(a) 候选方案存在但关键假设支撑不足，或 (b) 有 OB/FS/ASSUMPTION 缺少必要的测试
+- **MULTIPLE-VALID-PLANS** — 多个有效方案，排名依据缺失
+- **READY-TO-COMMIT** — 一个方案被选定，所有硬门控通过，剩余不确定性已显式接受
 
 ---
 
-## Default axioms (always active unless user overrides)
+## Default axioms（始终生效，除非用户覆盖）
 
 ```
 A1 — Testability
-     Every hard claim must have a decision procedure:
-     a static check or a finite experiment with a pass/fail threshold.
-     Without one, the claim cannot be verified — it becomes a BLOCKER
-     (stays in the validity model, blocks progress until a test is defined).
+     每个硬性声明必须有决策程序：静态检查或有明确通过/失败阈值的有限实验。
+     没有的话，该声明无法被验证——它变成 BLOCKER
+     （保留在有效性模型中，直到测试被定义才解除阻塞）。
 
 A2 — Time-boundedness
-     Volatile items (assumptions, commitments, decisions under uncertainty)
-     must specify how they end, converge, or are reviewed.
-     Structural facts that do not change do not require expiry.
+     易变项（假设、承诺、不确定性下的决策）必须说明如何结束、收敛或被复审。
+     不会改变的结构性事实不需要过期时间。
 
 A3 — Reversibility under uncertainty
-     Prefer reversible moves while uncertainty is high.
-     Irreversible decisions require: higher evidence threshold + explicit loss statement.
+     不确定性高时优先选择可逆动作。
+     不可逆决策需要：更高的证据门槛 + 明确的损失陈述。
 
 A4 — Net simplification
-     Every agent-invented abstraction must reduce total complexity or failure
-     exposure by a measurable amount. Otherwise reject or defer.
+     每个 agent 自造抽象必须可量化地降低总复杂度或失败暴露面。否则拒绝或推迟。
 
 A5 — No hidden assumptions
-     Unsupported bridges must be typed as ASSUMPTION with a test,
-     review point, or deletion condition.
+     未支撑的推理桥梁必须被类型化为 ASSUMPTION，附带测试、复审点或删除条件。
 ```
 
 ---
 
 ## Type system
 
-Two ledgers. Source types are extracted from user input. Derived types are computed from source types. Never mix them.
+两个账本。Source types 从用户输入提取。Derived types 从 source types 计算。不混用。
 
-**Source ledger** (extracted during DISCOVERY):
+**Source ledger**（DISCOVERY 阶段后台提取，FORMALIZATION 时亮出）：
 
 ```
 FACT            — asserted_by + observed_at
-                  review_by only if volatile (can change over time)
-GOAL            — desired outcome + success metric + horizon + weight
-HARD_CONSTRAINT — raw constraint; compiles to OB or FS in FORMALIZATION
-SOFT_CONSTRAINT — ranking term; affects selection, not validity
-PREFERENCE      — lightweight tie-breaker only
-ASSUMPTION      — unsupported bridge
-                  required: test + review_by + deletion_condition (all three)
-                  an assumption without a test is itself a BLOCKER
+                  review_by 仅在易变时需要
+GOAL            — 期望结果 + 成功指标 + 时间跨度 + 权重
+HARD_CONSTRAINT — 原始约束；在 FORMALIZATION 中编译为 OB 或 FS
+SOFT_CONSTRAINT — 排名项；影响选择，不影响有效性
+PREFERENCE      — 轻量级打破平局项
+ASSUMPTION      — 未支撑的推理桥梁
+                  必须：test + review_by + deletion_condition（三者缺一不可）
+                  缺少 test 的 assumption 本身就是 BLOCKER
 ```
 
-**Derived ledger** (computed during FORMALIZATION):
+**Derived ledger**（FORMALIZATION 阶段计算）：
 
 ```
-OBLIGATION      — must be true; cites upstream HC or GOAL; has a test
-FORBIDDEN_STATE — must never be true; cites upstream HC or GOAL; has a test
-HYPOTHESIS      — testable claim not yet verified; has a proposed test
-PLAN            — witness: satisfies all OBs, violates no FSs; lists assumptions used
-DECISION        — selected option with traceability to OBs/FSs it resolves
-                  if irreversible: evidence_threshold + loss_statement required
-COMMITMENT      — locked DECISION under monitoring
+OBLIGATION      — 必须为真；引用上游 HC 或 GOAL；有测试
+FORBIDDEN_STATE — 必须永不为真；引用上游 HC 或 GOAL；有测试
+HYPOTHESIS      — 尚未验证的可测试声明；有拟议测试
+PLAN            — 见证：满足所有 OB，不违反任何 FS；列出使用的 ASSUMPTION
+DECISION        — 带可追溯性的选定选项（追溯到它解决的 OB/FS）
+                  若不可逆：需要 evidence_threshold + loss_statement
+COMMITMENT      — 处于监控中的已锁定 DECISION
 ```
 
-HARD_CONSTRAINT is a source type only. It does not appear in the derived ledger. Once compiled to OB/FS it is superseded.
+HARD_CONSTRAINT 只是 source type。一旦编译为 OB/FS 即被取代，不出现在 derived ledger 中。
 
 ---
 
 ## Core loop
 
-### Phase 0 — Intake (DISCOVERY)
+### Phase 0 — Intake（DISCOVERY，对话模式）
 
-Extract whatever the user provided into the source ledger. Mark uncertainty explicitly. Do not fabricate.
+**用自然语言与用户对话，提取信息。不展示 SOURCE LEDGER。**
 
-**Provisional synthesis rule:** If there is ≥1 GOAL with a success metric and ≥1 HARD_CONSTRAINT, proceed to FORMALIZATION with explicit uncertainty. Do not require a complete input block. Remaining unknowns become ASSUMPTIONs.
+行为规则：
+- 用人话回应，不使用类型标签
+- 每次最多追问 3 个问题，优先问：目标清晰度 → 硬性不可妥协项 → 资源约束
+- 如果提取到重要内容，用一句话点出（例如："好，我记下来了，你的核心约束是 X。"）
+- 如果有 BLOCKER，用人话说清楚卡在哪里
+- 背后持续填充 source ledger，但不展示
+- 永远不要问公理。默认使用 A1–A5。
 
-If even this minimum is not met: stay in DISCOVERY, list top 3 missing blockers, ask at most 3 questions. Goal clarity first, then hard non-negotiables, then resource bounds.
+**充分性门控（Provisional synthesis rule）：**
+满足 ≥1 GOAL（有成功指标）+ ≥1 HARD_CONSTRAINT，即可进入 FORMALIZATION。
+剩余未知项变成 ASSUMPTION。不需要完整的输入块。
 
-Never ask for axioms. Use A1–A5 by default.
+未达到最低门控：继续对话，说出最重要的 1–3 个缺口。
 
-### Phase 1 — Normalize (FORMALIZATION)
+**DISCOVERY → FORMALIZATION 切换：**
+用一句过渡句标记，例如：
+"好，信息足够了，我来整理一下我们聊到的东西——"
+然后切换到 FORMALIZATION 格式。
 
-Compile each HARD_CONSTRAINT and GOAL into OB or FS:
-- Requirement, resource bound, compatibility (from HC or GOAL) → OBLIGATION
-- Prohibited outcome, risk tolerance (from HC or GOAL) → FORBIDDEN_STATE
+### Phase 1 — Normalize（FORMALIZATION）
 
-Each OB/FS must cite its upstream HC or GOAL. A plan is valid only if it satisfies all OBs and violates no FSs — including those derived from GOALs. This is the only validity gate.
+将每个 HARD_CONSTRAINT 和 GOAL 编译为 OB 或 FS：
+- 要求、资源约束、兼容性（来自 HC 或 GOAL）→ OBLIGATION
+- 禁止结果、风险容忍（来自 HC 或 GOAL）→ FORBIDDEN_STATE
 
-### Phase 2 — Derive (FORMALIZATION)
+每个 OB/FS 必须引用上游 HC 或 GOAL。方案有效性唯一门控：满足所有 OB + 不违反任何 FS。
 
-Mechanically:
-- Every OB/FS gets at least one test (A1); if no test can be defined, the OB/FS is a BLOCKER — do not downgrade it to HYPOTHESIS (that would silently remove it from the validity model); instead stay in NEED-EVIDENCE until a test is specified
-- Every ASSUMPTION gets test + review_by + deletion_condition (A1, A2, A5); missing any of the three is a BLOCKER
-- Every irreversible decision gets: evidence threshold + loss statement (A3)
-- Every agent-invented abstraction gets a noun budget annotation (A4)
-- Conflicting hard constraints → UNSAT; return smallest conflicting set
+### Phase 2 — Derive（FORMALIZATION）
 
-### Phase 3 — Generate candidate plans (FORMALIZATION)
+机械执行：
+- 每个 OB/FS 至少有一个测试（A1）；无法定义测试则为 BLOCKER——不要降级为 HYPOTHESIS（会把它从有效性模型中静默移除）；保持 NEED-EVIDENCE 直到测试被定义
+- 每个 ASSUMPTION 需要 test + review_by + deletion_condition（A1, A2, A5）；缺任何一个是 BLOCKER
+- 每个不可逆决策需要：证据门槛 + 损失陈述（A3）
+- 每个 agent 自造抽象需要 noun budget 注释（A4）
+- 硬约束冲突 → UNSAT；返回最小冲突集
 
-At most 3 plans. Each plan is a witness:
-- OBs satisfied (list each)
-- FSs avoided (list each)
-- ASSUMPTIONs used
-- Irreversible parts + loss statement
-- Open HYPOTHESEs
+### Phase 3 — Generate candidate plans（FORMALIZATION）
 
-If no credible ranking basis: state MULTIPLE-VALID-PLANS.
+最多 3 个方案。每个方案是见证：
+- 满足的 OBs（逐一列出）
+- 避免的 FSs（逐一列出）
+- 使用的 ASSUMPTIONs
+- 不可逆部分 + 损失陈述 + 证据门槛
+- 未解决的 HYPOTHESEs
 
-**Ranking:** When multiple valid plans exist, rank using: (1) soft constraints and preferences as scoring terms, (2) dominance — if Plan A satisfies all OBs Plan B satisfies and avoids all FSs Plan B avoids, and additionally satisfies more or takes on less irreversibility, Plan A dominates. State the ranking basis explicitly. If ranking is genuinely tied, say so.
+无可信排名依据时：声明 MULTIPLE-VALID-PLANS。
 
-### Phase 4 — Verify (REVIEW)
+**排名：** 使用 (1) soft constraints 和 preferences 作为评分项，(2) 支配关系——若 Plan A 满足 Plan B 的所有 OB、避免 Plan B 的所有 FS，且额外满足更多或承担更少不可逆性，则 Plan A 支配 Plan B。显式说明排名依据。真正平局时如实说。
 
-**V0 — Static checks** (each reported as PASS / FAIL / SKIP + one-line evidence):
+### Phase 4 — Verify（REVIEW）
 
-```
-V0-1  Source ledger: all items typed, no fabricated metadata
-V0-2  Derived ledger: every OB/FS cites upstream source item
-V0-3  Every OB/FS has a test (A1)
-V0-4  Every ASSUMPTION has review_by + deletion_condition (A2, A5)
-V0-5  Every irreversible decision has evidence threshold + loss statement (A3)
-V0-6  Every agent-invented abstraction has noun budget annotation (A4)
-V0-7  Satisfiability: no conflicting hard inputs
-V0-8  [READY-TO-COMMIT only] Selected plan satisfies all OBs, violates no FSs
-V0-9  [READY-TO-COMMIT only] Ranking basis is explicit
-```
-
-V0-8 and V0-9 are SKIP when the final state is not READY-TO-COMMIT.
-
-**V1 — Finite experiments** (only for live uncertainties):
-
-V1-E1 and V1-E3 apply only when state is READY-TO-COMMIT (they reference the selected plan).
-V1-E2 and V1-E4 apply in any state where candidate plans exist.
+**V0 — 静态检查**（每条报告 PASS / FAIL / SKIP + 一行证据）：
 
 ```
-E1  [READY-TO-COMMIT only] Counterexample attack: can the selected plan fail under a plausible scenario?
-E2  Constraint flip: if the tightest constraint were relaxed, would ranking change?
-E3  [READY-TO-COMMIT only] Exit/rollback rehearsal: if the irreversible commitment proves wrong, what is the recovery path?
-E4  Assumption kill: if the highest-risk assumption is false, does any candidate plan survive?
+V0-1  Source ledger：所有项已类型化，无伪造元数据
+V0-2  Derived ledger：每个 OB/FS 引用上游 source 项
+V0-3  每个 OB/FS 有测试（A1）
+V0-4  每个 ASSUMPTION 有 review_by + deletion_condition（A2, A5）
+V0-5  每个不可逆决策有证据门槛 + 损失陈述（A3）
+V0-6  每个 agent 自造抽象有 noun budget 注释（A4）
+V0-7  可满足性：无冲突硬输入
+V0-8  [仅 READY-TO-COMMIT] 选定方案满足所有 OB，不违反任何 FS
+V0-9  [仅 READY-TO-COMMIT] 排名依据显式
 ```
 
-### Phase 5 — Decide (REVIEW)
+V0-8 和 V0-9 在最终状态非 READY-TO-COMMIT 时为 SKIP。
 
-Select one plan only if:
-- Valid witness (all OBs satisfied, no FSs violated)
-- Ranking over alternatives is explicit (dominance or scored)
-- Irreversible parts cleared V0-5
-- Remaining uncertainty explicitly accepted
+**V1 — 有限实验**（仅针对活跃不确定性）：
 
-Otherwise: stay in NEED-EVIDENCE or MULTIPLE-VALID-PLANS. Refusal with precise blockers is a valid completion.
+V1-E1 和 V1-E3 仅在 READY-TO-COMMIT 时适用（引用选定方案）。
+V1-E2 和 V1-E4 在存在候选方案的任何状态下适用。
+
+```
+E1  [仅 READY-TO-COMMIT] 反例攻击：选定方案在某个合理场景下会失败吗？
+E2  约束翻转：如果最紧的约束被放松，排名会变吗？
+E3  [仅 READY-TO-COMMIT] 退出/回滚演练：如果不可逆承诺被证明是错的，恢复路径是什么？
+E4  假设杀死测试：如果风险最高的假设是错的，还有候选方案能存活吗？
+```
+
+### Phase 5 — Decide（REVIEW）
+
+仅在以下条件下选定方案：
+- 有效见证（满足所有 OB，不违反任何 FS）
+- 对备选方案的排名显式（支配或评分）
+- 不可逆部分通过 V0-5
+- 剩余不确定性显式接受
+
+否则：保持 NEED-EVIDENCE 或 MULTIPLE-VALID-PLANS。带精确阻塞点的拒绝是有效完成。
 
 ---
 
 ## Output format
 
-**DISCOVERY response** (lightweight):
+**DISCOVERY 轮次（对话模式）：**
 
 ```
-MODE: DISCOVERY
-STATE: <state>
+[自然语言回应]
 
-SOURCE LEDGER (extracted so far)
+（可选：如果提取到重要内容，用一句话点出）
+
+_MODE: DISCOVERY | STATE: <state>_
+```
+
+**FORMALIZATION 轮次：**
+
+```
+好，信息足够了，整理一下我们聊到的东西——
+
+[NOUN BUDGET — 仅在引入 agent 自造抽象时]
+  [TERM: <名称>] Replaces: ... Why not existing: ... Deletable if: ...
+
+SOURCE LEDGER
   Facts: ...
   Goals: ...
   Hard constraints: ...
   Soft constraints: ...
   Preferences: ...
   Assumptions: ...
-
-BLOCKERS
-  B1: ...
-
-QUESTIONS (≤3)
-  Q1: ...
-```
-
-**FORMALIZATION response**:
-
-```
-MODE: FORMALIZATION
-STATE: <state>
-
-[NOUN BUDGET — only if agent-invented abstractions introduced]
-  [TERM: <name>] Replaces: ... Why not existing: ... Deletable if: ...
-
-SOURCE LEDGER (updated)
-  ...
 
 DERIVED LEDGER
   OB1: ... (← HC1) | test: ...
@@ -277,18 +264,19 @@ RANKING
 
 BLOCKERS & NEXT ACTIONS
   ...
+
+_MODE: FORMALIZATION | STATE: <state>_
 ```
 
-**REVIEW response** (full):
+**REVIEW 轮次（完整格式）：**
 
 ```
-MODE: REVIEW
-STATE: <state>
+[自然语言选择/拒绝理由，1–3 句]
 
 VERIFICATION
-  V0-1: PASS/FAIL/SKIP — <evidence>
+  V0-1: PASS/FAIL/SKIP — <证据>
   ...
-  V1-E1: <attack scenario and result>
+  V1-E1: <攻击场景和结果>
   ...
 
 SELECTED PLAN / REFUSAL
@@ -302,33 +290,37 @@ ITERATION LOG
   state_after: ...
   decisions: ...
   accepted_uncertainty: ...
+
+_MODE: REVIEW | STATE: <state>_
 ```
 
 ---
 
 ## Completion conditions
 
-The skill is complete when it reaches any of these with a justified output:
+以下任意一个有理由的输出即为完成：
 
-- `READY-TO-COMMIT` — one plan selected, ranking explicit, hard gates pass
-- `UNSAT` — smallest conflicting hard set identified
-- `MULTIPLE-VALID-PLANS` — valid options remain, ranking basis missing
-- `NEED-EVIDENCE` — required experiments specified
-- `UNDER-CONSTRAINED` — minimal blocker set and next questions specified
+- `READY-TO-COMMIT` — 一个方案被选定，排名显式，硬门控通过
+- `UNSAT` — 最小冲突硬集已识别
+- `MULTIPLE-VALID-PLANS` — 有效方案存在，排名依据缺失
+- `NEED-EVIDENCE` — 所需实验已指定
+- `UNDER-CONSTRAINED` — 最小阻塞集和下一步问题已指定
 
-Refusal with precise blockers is a valid completion. Do not require selection.
+带精确阻塞点的拒绝是有效完成。不要求必须选定方案。
 
 ---
 
 ## What NOT to do
 
-- Do not fabricate metadata (use `unknown` for missing fields in DISCOVERY)
-- Do not mix source types and derived types in the same ledger
-- Do not apply expiry/review_by to structural facts that cannot change
-- Do not count user-supplied terms or domain nouns against the noun budget
-- Do not span more than one mode in a single response
-- Do not treat DISCOVERY output as structural — it is scaffolding until confirmed
-- Do not invent facts; unsupported bridges become ASSUMPTIONs
-- Do not confuse obligations with plans, validity with selection, hypotheses with facts
-- Do not pretend to be in a later state than the evidence allows
-- Do not run V0-8/V0-9 when the final state is not READY-TO-COMMIT
+- 不要伪造元数据（DISCOVERY 中缺失字段用 `unknown`）
+- 不要在同一账本中混用 source types 和 derived types
+- 不要对不会改变的结构性事实应用 review_by
+- 不要把用户提供的词或领域名词计入 noun budget
+- 不要在单轮中跨越多个模式
+- 不要把 DISCOVERY 输出当作结构性内容——它是草稿，直到被 FORMALIZATION 确认
+- 不要发明事实；未支撑的桥梁变成 ASSUMPTION
+- 不要混淆 obligation 与 plan、validity 与 selection、hypothesis 与 fact
+- 不要假装处于比证据允许的更晚的状态
+- 不要在最终状态非 READY-TO-COMMIT 时运行 V0-8/V0-9
+- **不要在 DISCOVERY 阶段展示 SOURCE LEDGER**——背后提取，FORMALIZATION 时亮出
+- **不要在 DISCOVERY 阶段使用类型标签**（FACT/GOAL/HC 等）——用人话
