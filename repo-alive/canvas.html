@@ -502,24 +502,24 @@ th.sh.ah{color:var(--accent);background:rgba(88,166,255,.06);}
 // These are overwritten by client.js on load.
 // Do not add hardcoded data here — this canvas is project-agnostic.
 
-const CONTAINER_SIZES = {};  // populated after /graph load
+var CONTAINER_SIZES = {};  // populated after /graph load
 
-let LEADER_CHILDREN = [];
-let CODEX_CHILDREN  = [];
-let MCP_CHILDREN    = [];
+var LEADER_CHILDREN = [];
+var CODEX_CHILDREN  = [];
+var MCP_CHILDREN    = [];
 
-let ROOT_NODES = {};
-let ROOT_EDGES = [];
+var ROOT_NODES = {};
+var ROOT_EDGES = [];
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════
 // DATA STUBS — populated by repo-alive client.js from /node/:id and /scenario/:id APIs
 // ═══════════════════════════════════════════════════════════
 
-let DETAILS     = {};   // populated on node click via /node/:id
-let STEPS       = [];   // populated on scenario load via /scenario/:id
-let SWIM_ACTORS = [];
-let SWIM_MAP    = [];
+var DETAILS     = {};   // populated on node click via /node/:id
+var STEPS       = [];   // populated on scenario load via /scenario/:id
+var SWIM_ACTORS = [];
+var SWIM_MAP    = [];
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════
