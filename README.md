@@ -2,6 +2,14 @@
 
 A collection of Claude Code skills for codebase analysis and developer tooling.
 
+## Install
+
+```bash
+git clone https://github.com/wangwu-30/ww-skills ~/.claude/skills/ww-skills && cp -r ~/.claude/skills/ww-skills/repo-alive ~/.claude/skills/repo-alive
+```
+
+---
+
 ## Skills
 
 ### [repo-alive](./repo-alive/skill.md)
@@ -31,12 +39,44 @@ Makes any codebase self-explanatory. Runs an uncertainty-reduction analysis loop
 
 ---
 
-## Usage
-
-These skills are designed for [Claude Code](https://claude.ai/code). Place the skill directory in your Claude skills folder:
-
-```bash
-cp -r repo-alive ~/.claude/skills/
-```
-
-Then invoke with `/repo-alive` in Claude Code.
+<!-- AGENT-MANIFEST
+This section is machine-readable. Do not edit manually.
+{
+  "repo": "https://github.com/wangwu-30/ww-skills",
+  "skills": [
+    {
+      "name": "repo-alive",
+      "version": "0.0.2",
+      "invoke": "/repo-alive",
+      "skill_file": "repo-alive/skill.md",
+      "install_dir": "~/.claude/skills/repo-alive",
+      "install_cmd": "cp -r repo-alive ~/.claude/skills/repo-alive",
+      "runtime": "Claude Code",
+      "deps": {
+        "required": [],
+        "optional_html_mode": ["node >= 18", "npm"]
+      },
+      "files": [
+        "repo-alive/skill.md",
+        "repo-alive/server.js",
+        "repo-alive/cc-bridge.js",
+        "repo-alive/canvas.html",
+        "repo-alive/client.js",
+        "repo-alive/package.json"
+      ],
+      "outputs": [
+        ".repo-alive/graph.json",
+        ".repo-alive/nodes/<id>.json",
+        ".repo-alive/scenarios/<id>.json",
+        ".repo-alive/fingerprint.json",
+        ".repo-alive/ownership.json"
+      ],
+      "modes": [
+        { "flag": "",         "description": "analyze if stale, then TUI chat" },
+        { "flag": "analyze",  "description": "force re-analysis, then TUI chat" },
+        { "flag": "--html",   "description": "[EXPERIMENTAL] analyze then serve HTML canvas on localhost:4311" }
+      ]
+    }
+  ]
+}
+AGENT-MANIFEST -->
