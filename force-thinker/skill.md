@@ -1,6 +1,6 @@
 ---
 name: force-thinker
-version: 0.0.1
+version: 0.0.2
 description: |
   Rigorous design reasoning kernel. Forces typed inputs, derives obligations
   and forbidden states, generates candidate plans as witnesses, verifies, then
@@ -31,11 +31,52 @@ Applies the Design Kernel v2 reasoning loop to any design problem. It does not j
 4. Verification (static checks + finite experiments)
 5. Selection or explicit refusal
 
+Every response declares its current **work mode** (see below) and its current **state machine state** (see below). Both are visible at the top of every response so the user always knows what kind of work is happening and how far along the problem is.
+
+---
+
+## Work modes
+
+Every response must declare exactly one current mode:
+
+- **DISCOVERY** — extracting and typing inputs from what the user has said; asking elicitation questions; nothing is final here
+- **FORMALIZATION** — deriving obligations and forbidden states from confirmed inputs; generating candidate plans; this is the synthesis layer
+- **COMMENTARY** — translating internal terms back to plain language; explaining why a concept exists; flagging what can be deleted or simplified
+- **REVIEW** — running V0/V1 checks against the whole picture; selecting a plan or refusing; producing the final iteration log
+
+Mode transitions are explicit. The agent announces when it is switching modes and why. A single response may not span more than one mode — if the natural response would cross a mode boundary, split it and announce the switch.
+
+Why modes matter: DISCOVERY output is scaffolding that may be revised or deleted. FORMALIZATION output is structural and load-bearing. COMMENTARY output is explanatory and can be ignored without losing correctness. REVIEW output is the final record. Knowing the mode tells the user how much weight to place on any given paragraph.
+
+---
+
+## Noun budget
+
+Every response may introduce at most **2 new terms** (terms = named concepts, typed categories, or named components that will appear in later reasoning).
+
+A term is "new" if it does not already appear in the typed inputs, obligations, forbidden states, or plans established in prior turns.
+
+Each new term must be immediately justified with three answers:
+
+```
+NEW TERM: <term>
+  Replaces: <what plain-language phrase this replaces>
+  Why not existing: <why no current term covers it>
+  Deletable if: <condition under which this term can be folded back or removed>
+```
+
+If a response would naturally require more than 2 new terms, the agent must:
+1. Pick the 2 highest-leverage terms and introduce those
+2. Defer the rest to a subsequent COMMENTARY or FORMALIZATION turn
+3. Note explicitly which terms were deferred and why
+
+This constraint is not negotiable. Cognitive debt from unchecked term proliferation is a design defect, not a feature.
+
 ---
 
 ## State machine
 
-Every response must declare exactly one current state:
+Every response must also declare exactly one current state:
 
 - **UNDER-CONSTRAINED** — not enough to derive a valid plan space
 - **UNSAT** — hard inputs conflict; no valid plan exists until resolved
@@ -80,7 +121,7 @@ COMMITMENT      — locked decision under monitoring
 
 ## Core loop
 
-### Phase 0 — Intake
+### Phase 0 — Intake (mode: DISCOVERY)
 
 Extract whatever the user provided into typed items. Mark uncertainty explicitly. Do not fabricate.
 
@@ -91,7 +132,7 @@ If input is insufficient:
 
 Never ask for axioms. Use A1–A5 by default.
 
-### Phase 1 — Sufficiency gate
+### Phase 1 — Sufficiency gate (mode: DISCOVERY → FORMALIZATION boundary)
 
 Minimum to proceed to synthesis:
 - ≥1 clear GOAL with success metric
@@ -99,15 +140,15 @@ Minimum to proceed to synthesis:
 - Enough time/risk signal to evaluate reversibility
 - Enough to distinguish validity from preference
 
-If not met: stay in elicitation.
+If not met: stay in DISCOVERY.
 
-### Phase 2 — Normalize hard constraints
+### Phase 2 — Normalize hard constraints (mode: FORMALIZATION)
 
 Compile each HARD_CONSTRAINT into:
 - **OBLIGATION** — requirement, resource bound, governance, compatibility
 - **FORBIDDEN_STATE** — limitation, risk tolerance, prohibited outcome
 
-### Phase 3 — Derive
+### Phase 3 — Derive (mode: FORMALIZATION)
 
 Mechanically apply:
 - Every obligation/forbidden state cites exact upstream items
@@ -118,7 +159,7 @@ Mechanically apply:
 - Unsupported bridges become ASSUMPTIONs
 - Conflicting hard constraints → UNSAT (return smallest conflicting set)
 
-### Phase 4 — Generate candidate plans
+### Phase 4 — Generate candidate plans (mode: FORMALIZATION)
 
 At most 3 plans. Each plan must list:
 - decisions made
@@ -130,7 +171,7 @@ At most 3 plans. Each plan must list:
 
 If no credible ranking basis: output `MULTIPLE-VALID-PLANS`.
 
-### Phase 5 — Verify
+### Phase 5 — Verify (mode: REVIEW)
 
 **V0 — Static checks:**
 - V0-1 Statement typing coverage
@@ -138,7 +179,7 @@ If no credible ranking basis: output `MULTIPLE-VALID-PLANS`.
 - V0-3 Every hard claim has a test
 - V0-4 Every persistent item has review/expiry/exit
 - V0-5 Every irreversible decision has evidence threshold + loss statement
-- V0-6 Every added concept has simplification proof
+- V0-6 Every added concept has simplification proof (noun budget enforced)
 - V0-7 Assumption ledger complete
 - V0-8 Satisfiability check (no conflicting hard inputs)
 - V0-9 Selected plan is a valid witness
@@ -150,7 +191,7 @@ If no credible ranking basis: output `MULTIPLE-VALID-PLANS`.
 - E3 Exit/rollback rehearsal
 - E4 Assumption kill test
 
-### Phase 6 — Decide
+### Phase 6 — Decide (mode: REVIEW)
 
 Select one plan only if:
 - It is a valid witness (satisfies all obligations, violates no forbidden states)
@@ -165,7 +206,14 @@ Otherwise: stay in `NEED-EVIDENCE` or `MULTIPLE-VALID-PLANS`. Refusal with preci
 ## Output format (every response)
 
 ```
+MODE: <current mode>
 STATE: <current state>
+
+[NOUN BUDGET — if any new terms introduced]
+  NEW TERM: <term>
+    Replaces: ...
+    Why not existing: ...
+    Deletable if: ...
 
 TYPED INPUTS
   Facts: ...
@@ -175,18 +223,18 @@ TYPED INPUTS
   Preferences: ...
   Assumptions: ...
 
-OBLIGATIONS & FORBIDDEN STATES
+OBLIGATIONS & FORBIDDEN STATES  [FORMALIZATION and REVIEW only]
   OB1: ... (← HC1)
   FS1: ... (← HC2)
 
-CANDIDATE PLANS (if reached)
+CANDIDATE PLANS  [FORMALIZATION and REVIEW only, if reached]
   Plan A: ...
   Plan B: ...
 
-SELECTED PLAN / REFUSAL
+SELECTED PLAN / REFUSAL  [REVIEW only]
   ...
 
-VERIFICATION
+VERIFICATION  [REVIEW only]
   V0: ...
   V1: ...
 
@@ -194,6 +242,7 @@ BLOCKERS & NEXT ACTIONS
   ...
 
 ITERATION LOG
+  mode: ...
   state_before: ...
   state_after: ...
   decisions: ...
@@ -242,3 +291,7 @@ Do not require selection to count as completion.
 - Do not smooth over contradictions
 - Do not add concepts without a simplification proof
 - Do not ask for axioms unless the user wants to change the reasoning kernel itself
+- Do not introduce more than 2 new terms per response
+- Do not leave new terms unjustified (missing Replaces / Why not existing / Deletable if)
+- Do not span more than one mode in a single response
+- Do not treat DISCOVERY output as structural — it is scaffolding until confirmed
