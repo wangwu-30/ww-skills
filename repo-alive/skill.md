@@ -1,6 +1,6 @@
 ---
 name: repo-alive
-version: 2.0.0
+version: 0.0.2
 description: |
   Makes any codebase self-explanatory. Runs an uncertainty-reduction analysis loop
   (wide search → hypotheses → verification → manifests), then enters a persistent
