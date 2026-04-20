@@ -1,6 +1,6 @@
 ---
 name: force-thinker
-version: 0.0.2
+version: 0.0.5
 description: |
   Rigorous design reasoning kernel. Forces typed inputs, derives obligations
   and forbidden states, generates candidate plans as witnesses, verifies, then
@@ -23,7 +23,7 @@ allowed-tools:
 
 ## What this skill does
 
-Applies the Design Kernel v2 reasoning loop to any design problem. It does not jump to solutions. It forces:
+Applies the Design Kernel reasoning loop to any design problem. Does not jump to solutions. Forces:
 
 1. Typed inputs — facts, goals, constraints, assumptions
 2. Derived obligations and forbidden states
@@ -31,191 +31,213 @@ Applies the Design Kernel v2 reasoning loop to any design problem. It does not j
 4. Verification (static checks + finite experiments)
 5. Selection or explicit refusal
 
-Every response declares its current **work mode** (see below) and its current **state machine state** (see below). Both are visible at the top of every response so the user always knows what kind of work is happening and how far along the problem is.
-
 ---
 
 ## Work modes
 
-Every response must declare exactly one current mode:
+Every response declares exactly one mode at the top. Mode tells the user how much weight to place on the output.
 
-- **DISCOVERY** — extracting and typing inputs from what the user has said; asking elicitation questions; nothing is final here
-- **FORMALIZATION** — deriving obligations and forbidden states from confirmed inputs; generating candidate plans; this is the synthesis layer
-- **COMMENTARY** — translating internal terms back to plain language; explaining why a concept exists; flagging what can be deleted or simplified
-- **REVIEW** — running V0/V1 checks against the whole picture; selecting a plan or refusing; producing the final iteration log
+- **DISCOVERY** — extracting and typing inputs; asking elicitation questions; everything here is scaffolding, may be revised
+- **FORMALIZATION** — deriving obligations/forbidden states; generating candidate plans; this is structural and load-bearing
+- **REVIEW** — running V0/V1 checks; selecting or refusing; producing the final iteration log
 
-Mode transitions are explicit. The agent announces when it is switching modes and why. A single response may not span more than one mode — if the natural response would cross a mode boundary, split it and announce the switch.
+Mode transitions are explicit and announced. A single response stays in one mode. If the natural response crosses a boundary, stop at the boundary, announce the switch, and continue in the next turn.
 
-Why modes matter: DISCOVERY output is scaffolding that may be revised or deleted. FORMALIZATION output is structural and load-bearing. COMMENTARY output is explanatory and can be ignored without losing correctness. REVIEW output is the final record. Knowing the mode tells the user how much weight to place on any given paragraph.
+**COMMENTARY is not a mode.** It is an inline annotation attached to any agent-invented abstraction. See Noun Budget below.
 
 ---
 
 ## Noun budget
 
-Every response may introduce at most **2 new terms** (terms = named concepts, typed categories, or named components that will appear in later reasoning).
+Every response may introduce at most **2 agent-invented abstractions** (named concepts the agent coins that are not already present in the user's input, domain vocabulary, or established typed items).
 
-A term is "new" if it does not already appear in the typed inputs, obligations, forbidden states, or plans established in prior turns.
+User-supplied terms, domain nouns, plan labels (Plan A/B/C), and typed category names (GOAL, OB, FS...) do not count against the budget.
 
-Each new term must be immediately justified with three answers:
+Each agent-invented abstraction must be immediately annotated inline:
 
 ```
-NEW TERM: <term>
-  Replaces: <what plain-language phrase this replaces>
+[TERM: <name>]
+  Replaces: <plain-language phrase this replaces>
   Why not existing: <why no current term covers it>
-  Deletable if: <condition under which this term can be folded back or removed>
+  Deletable if: <condition under which this folds back>
 ```
 
-If a response would naturally require more than 2 new terms, the agent must:
-1. Pick the 2 highest-leverage terms and introduce those
-2. Defer the rest to a subsequent COMMENTARY or FORMALIZATION turn
-3. Note explicitly which terms were deferred and why
+If a response would naturally require more than 2 new abstractions:
+1. Pick the 2 highest-leverage ones, annotate them
+2. Defer the rest, note explicitly what was deferred and why
 
-This constraint is not negotiable. Cognitive debt from unchecked term proliferation is a design defect, not a feature.
+Cognitive debt from unchecked abstraction proliferation is a design defect, not a feature.
 
 ---
 
 ## State machine
 
-Every response must also declare exactly one current state:
+Every response also declares exactly one state:
 
 - **UNDER-CONSTRAINED** — not enough to derive a valid plan space
-- **UNSAT** — hard inputs conflict; no valid plan exists until resolved
-- **NEED-EVIDENCE** — candidate plans exist but critical hypotheses are under-supported
+- **UNSAT** — hard inputs conflict; no valid plan until resolved
+- **NEED-EVIDENCE** — blocked from committing: either (a) candidate plans exist but critical hypotheses are under-supported, or (b) one or more OBs/FSs/ASSUMPTIONs lack a required test and cannot be verified
 - **MULTIPLE-VALID-PLANS** — multiple valid plans, ranking basis missing
 - **READY-TO-COMMIT** — one plan selected, all hard gates pass, remaining uncertainty explicit
 
 ---
 
-## Default axioms (always active unless overridden)
+## Default axioms (always active unless user overrides)
 
 ```
-A1 — Testability: every hard claim must have a decision procedure (static check or finite experiment with pass/fail threshold)
-A2 — Time-boundedness: every persistent fact, assumption, decision must specify how it ends, converges, or is reviewed
-A3 — Reversibility under uncertainty: prefer reversible moves while uncertainty is high; irreversible decisions need higher evidence threshold + loss statement
-A4 — Net simplification: every added concept/path/state must reduce total complexity or failure exposure by a measurable amount; otherwise reject or defer
-A5 — No hidden assumptions: unsupported bridges must be typed as ASSUMPTION with a test, review point, or deletion condition
+A1 — Testability
+     Every hard claim must have a decision procedure:
+     a static check or a finite experiment with a pass/fail threshold.
+     Without one, the claim cannot be verified — it becomes a BLOCKER
+     (stays in the validity model, blocks progress until a test is defined).
+
+A2 — Time-boundedness
+     Volatile items (assumptions, commitments, decisions under uncertainty)
+     must specify how they end, converge, or are reviewed.
+     Structural facts that do not change do not require expiry.
+
+A3 — Reversibility under uncertainty
+     Prefer reversible moves while uncertainty is high.
+     Irreversible decisions require: higher evidence threshold + explicit loss statement.
+
+A4 — Net simplification
+     Every agent-invented abstraction must reduce total complexity or failure
+     exposure by a measurable amount. Otherwise reject or defer.
+
+A5 — No hidden assumptions
+     Unsupported bridges must be typed as ASSUMPTION with a test,
+     review point, or deletion condition.
 ```
 
 ---
 
-## Statement types
+## Type system
 
-Every extracted item must be typed as exactly one of:
+Two ledgers. Source types are extracted from user input. Derived types are computed from source types. Never mix them.
+
+**Source ledger** (extracted during DISCOVERY):
 
 ```
-FACT            — observable, asserted_by + observed_at + review_by
+FACT            — asserted_by + observed_at
+                  review_by only if volatile (can change over time)
 GOAL            — desired outcome + success metric + horizon + weight
-HARD_CONSTRAINT — compiles to OBLIGATION or FORBIDDEN_STATE
-SOFT_CONSTRAINT — ranking term, not validity gate
+HARD_CONSTRAINT — raw constraint; compiles to OB or FS in FORMALIZATION
+SOFT_CONSTRAINT — ranking term; affects selection, not validity
 PREFERENCE      — lightweight tie-breaker only
-ASSUMPTION      — unsupported bridge + test + review_by + deletion_condition
-OBLIGATION      — must be true; has a test
-FORBIDDEN_STATE — must never be true; has a test
-HYPOTHESIS      — testable claim, not yet verified
-DECISION        — selected option with traceability
-PLAN            — witness: satisfies all obligations, violates no forbidden states
-COMMITMENT      — locked decision under monitoring
+ASSUMPTION      — unsupported bridge
+                  required: test + review_by + deletion_condition (all three)
+                  an assumption without a test is itself a BLOCKER
 ```
+
+**Derived ledger** (computed during FORMALIZATION):
+
+```
+OBLIGATION      — must be true; cites upstream HC or GOAL; has a test
+FORBIDDEN_STATE — must never be true; cites upstream HC or GOAL; has a test
+HYPOTHESIS      — testable claim not yet verified; has a proposed test
+PLAN            — witness: satisfies all OBs, violates no FSs; lists assumptions used
+DECISION        — selected option with traceability to OBs/FSs it resolves
+                  if irreversible: evidence_threshold + loss_statement required
+COMMITMENT      — locked DECISION under monitoring
+```
+
+HARD_CONSTRAINT is a source type only. It does not appear in the derived ledger. Once compiled to OB/FS it is superseded.
 
 ---
 
 ## Core loop
 
-### Phase 0 — Intake (mode: DISCOVERY)
+### Phase 0 — Intake (DISCOVERY)
 
-Extract whatever the user provided into typed items. Mark uncertainty explicitly. Do not fabricate.
+Extract whatever the user provided into the source ledger. Mark uncertainty explicitly. Do not fabricate.
 
-If input is insufficient:
-- State current state: `UNDER-CONSTRAINED`
-- List top 3 missing blockers
-- Ask at most 3 highest-leverage questions (goal clarity first, then hard non-negotiables, then resource bounds, then reversibility)
+**Provisional synthesis rule:** If there is ≥1 GOAL with a success metric and ≥1 HARD_CONSTRAINT, proceed to FORMALIZATION with explicit uncertainty. Do not require a complete input block. Remaining unknowns become ASSUMPTIONs.
+
+If even this minimum is not met: stay in DISCOVERY, list top 3 missing blockers, ask at most 3 questions. Goal clarity first, then hard non-negotiables, then resource bounds.
 
 Never ask for axioms. Use A1–A5 by default.
 
-### Phase 1 — Sufficiency gate (mode: DISCOVERY → FORMALIZATION boundary)
+### Phase 1 — Normalize (FORMALIZATION)
 
-Minimum to proceed to synthesis:
-- ≥1 clear GOAL with success metric
-- ≥2 HARD_CONSTRAINTs from different types
-- Enough time/risk signal to evaluate reversibility
-- Enough to distinguish validity from preference
+Compile each HARD_CONSTRAINT and GOAL into OB or FS:
+- Requirement, resource bound, compatibility (from HC or GOAL) → OBLIGATION
+- Prohibited outcome, risk tolerance (from HC or GOAL) → FORBIDDEN_STATE
 
-If not met: stay in DISCOVERY.
+Each OB/FS must cite its upstream HC or GOAL. A plan is valid only if it satisfies all OBs and violates no FSs — including those derived from GOALs. This is the only validity gate.
 
-### Phase 2 — Normalize hard constraints (mode: FORMALIZATION)
+### Phase 2 — Derive (FORMALIZATION)
 
-Compile each HARD_CONSTRAINT into:
-- **OBLIGATION** — requirement, resource bound, governance, compatibility
-- **FORBIDDEN_STATE** — limitation, risk tolerance, prohibited outcome
+Mechanically:
+- Every OB/FS gets at least one test (A1); if no test can be defined, the OB/FS is a BLOCKER — do not downgrade it to HYPOTHESIS (that would silently remove it from the validity model); instead stay in NEED-EVIDENCE until a test is specified
+- Every ASSUMPTION gets test + review_by + deletion_condition (A1, A2, A5); missing any of the three is a BLOCKER
+- Every irreversible decision gets: evidence threshold + loss statement (A3)
+- Every agent-invented abstraction gets a noun budget annotation (A4)
+- Conflicting hard constraints → UNSAT; return smallest conflicting set
 
-### Phase 3 — Derive (mode: FORMALIZATION)
+### Phase 3 — Generate candidate plans (FORMALIZATION)
 
-Mechanically apply:
-- Every obligation/forbidden state cites exact upstream items
-- Every hard claim gets at least one test; otherwise downgrade
-- Every persistent item gets review/expiry/exit/convergence
-- Every irreversible decision gets: evidence threshold + loss statement + rollback rehearsal
-- Every added concept needs measurable simplification proof
-- Unsupported bridges become ASSUMPTIONs
-- Conflicting hard constraints → UNSAT (return smallest conflicting set)
+At most 3 plans. Each plan is a witness:
+- OBs satisfied (list each)
+- FSs avoided (list each)
+- ASSUMPTIONs used
+- Irreversible parts + loss statement
+- Open HYPOTHESEs
 
-### Phase 4 — Generate candidate plans (mode: FORMALIZATION)
+If no credible ranking basis: state MULTIPLE-VALID-PLANS.
 
-At most 3 plans. Each plan must list:
-- decisions made
-- obligations satisfied
-- forbidden states avoided
-- assumptions used
-- irreversible parts
-- open hypotheses
+**Ranking:** When multiple valid plans exist, rank using: (1) soft constraints and preferences as scoring terms, (2) dominance — if Plan A satisfies all OBs Plan B satisfies and avoids all FSs Plan B avoids, and additionally satisfies more or takes on less irreversibility, Plan A dominates. State the ranking basis explicitly. If ranking is genuinely tied, say so.
 
-If no credible ranking basis: output `MULTIPLE-VALID-PLANS`.
+### Phase 4 — Verify (REVIEW)
 
-### Phase 5 — Verify (mode: REVIEW)
+**V0 — Static checks** (each reported as PASS / FAIL / SKIP + one-line evidence):
 
-**V0 — Static checks:**
-- V0-1 Statement typing coverage
-- V0-2 Traceability (every OB/FS cites upstream)
-- V0-3 Every hard claim has a test
-- V0-4 Every persistent item has review/expiry/exit
-- V0-5 Every irreversible decision has evidence threshold + loss statement
-- V0-6 Every added concept has simplification proof (noun budget enforced)
-- V0-7 Assumption ledger complete
-- V0-8 Satisfiability check (no conflicting hard inputs)
-- V0-9 Selected plan is a valid witness
-- V0-10 Ranking basis is explicit
+```
+V0-1  Source ledger: all items typed, no fabricated metadata
+V0-2  Derived ledger: every OB/FS cites upstream source item
+V0-3  Every OB/FS has a test (A1)
+V0-4  Every ASSUMPTION has review_by + deletion_condition (A2, A5)
+V0-5  Every irreversible decision has evidence threshold + loss statement (A3)
+V0-6  Every agent-invented abstraction has noun budget annotation (A4)
+V0-7  Satisfiability: no conflicting hard inputs
+V0-8  [READY-TO-COMMIT only] Selected plan satisfies all OBs, violates no FSs
+V0-9  [READY-TO-COMMIT only] Ranking basis is explicit
+```
 
-**V1 — Finite experiments (for live uncertainties only):**
-- E1 Counterexample attack
-- E2 Constraint flip
-- E3 Exit/rollback rehearsal
-- E4 Assumption kill test
+V0-8 and V0-9 are SKIP when the final state is not READY-TO-COMMIT.
 
-### Phase 6 — Decide (mode: REVIEW)
+**V1 — Finite experiments** (only for live uncertainties):
+
+V1-E1 and V1-E3 apply only when state is READY-TO-COMMIT (they reference the selected plan).
+V1-E2 and V1-E4 apply in any state where candidate plans exist.
+
+```
+E1  [READY-TO-COMMIT only] Counterexample attack: can the selected plan fail under a plausible scenario?
+E2  Constraint flip: if the tightest constraint were relaxed, would ranking change?
+E3  [READY-TO-COMMIT only] Exit/rollback rehearsal: if the irreversible commitment proves wrong, what is the recovery path?
+E4  Assumption kill: if the highest-risk assumption is false, does any candidate plan survive?
+```
+
+### Phase 5 — Decide (REVIEW)
 
 Select one plan only if:
-- It is a valid witness (satisfies all obligations, violates no forbidden states)
-- Ranking over alternatives is explicit
+- Valid witness (all OBs satisfied, no FSs violated)
+- Ranking over alternatives is explicit (dominance or scored)
 - Irreversible parts cleared V0-5
-- Remaining uncertainty is explicitly accepted
+- Remaining uncertainty explicitly accepted
 
-Otherwise: stay in `NEED-EVIDENCE` or `MULTIPLE-VALID-PLANS`. Refusal with precise blockers is a valid completion.
+Otherwise: stay in NEED-EVIDENCE or MULTIPLE-VALID-PLANS. Refusal with precise blockers is a valid completion.
 
 ---
 
-## Output format (every response)
+## Output format
+
+**DISCOVERY response** (lightweight):
 
 ```
-MODE: <current mode>
-STATE: <current state>
+MODE: DISCOVERY
+STATE: <state>
 
-[NOUN BUDGET — if any new terms introduced]
-  NEW TERM: <term>
-    Replaces: ...
-    Why not existing: ...
-    Deletable if: ...
-
-TYPED INPUTS
+SOURCE LEDGER (extracted so far)
   Facts: ...
   Goals: ...
   Hard constraints: ...
@@ -223,26 +245,59 @@ TYPED INPUTS
   Preferences: ...
   Assumptions: ...
 
-OBLIGATIONS & FORBIDDEN STATES  [FORMALIZATION and REVIEW only]
-  OB1: ... (← HC1)
-  FS1: ... (← HC2)
+BLOCKERS
+  B1: ...
 
-CANDIDATE PLANS  [FORMALIZATION and REVIEW only, if reached]
-  Plan A: ...
-  Plan B: ...
+QUESTIONS (≤3)
+  Q1: ...
+```
 
-SELECTED PLAN / REFUSAL  [REVIEW only]
+**FORMALIZATION response**:
+
+```
+MODE: FORMALIZATION
+STATE: <state>
+
+[NOUN BUDGET — only if agent-invented abstractions introduced]
+  [TERM: <name>] Replaces: ... Why not existing: ... Deletable if: ...
+
+SOURCE LEDGER (updated)
   ...
 
-VERIFICATION  [REVIEW only]
-  V0: ...
-  V1: ...
+DERIVED LEDGER
+  OB1: ... (← HC1) | test: ...
+  FS1: ... (← HC2) | test: ...
+
+CANDIDATE PLANS
+  Plan A: OBs satisfied: ... | FSs avoided: ... | Assumptions: ... | Irreversible: ... | Evidence threshold: ... | Loss statement: ...
+  Plan B: ...
+
+RANKING
+  ...
 
 BLOCKERS & NEXT ACTIONS
   ...
+```
+
+**REVIEW response** (full):
+
+```
+MODE: REVIEW
+STATE: <state>
+
+VERIFICATION
+  V0-1: PASS/FAIL/SKIP — <evidence>
+  ...
+  V1-E1: <attack scenario and result>
+  ...
+
+SELECTED PLAN / REFUSAL
+  ...
+
+REMAINING UNCERTAINTY ACCEPTED
+  ...
 
 ITERATION LOG
-  mode: ...
   state_before: ...
   state_after: ...
   decisions: ...
@@ -251,47 +306,29 @@ ITERATION LOG
 
 ---
 
-## Elicitation rules
-
-- Ask short, atomic questions
-- Prefer multiple choice or bounded prompts
-- Never ask more than one question about the same missing field per turn
-- Do not ask low-leverage questions early
-- If the user doesn't know, create an ASSUMPTION or mark as missing hard input
-
-Good early questions:
-- What outcome matters most?
-- What absolutely must not happen?
-- What resource is tightest: time, money, people, or complexity?
-- What existing behavior must remain true?
-- What decision would be costly to reverse?
-- What deadline or approval gate is real?
-
----
-
 ## Completion conditions
 
 The skill is complete when it reaches any of these with a justified output:
 
-- `READY-TO-COMMIT` — one selected plan, ranking explicit, hard gates pass
-- `UNSAT` — smallest known conflicting hard set identified
+- `READY-TO-COMMIT` — one plan selected, ranking explicit, hard gates pass
+- `UNSAT` — smallest conflicting hard set identified
 - `MULTIPLE-VALID-PLANS` — valid options remain, ranking basis missing
 - `NEED-EVIDENCE` — required experiments specified
 - `UNDER-CONSTRAINED` — minimal blocker set and next questions specified
 
-Do not require selection to count as completion.
+Refusal with precise blockers is a valid completion. Do not require selection.
 
 ---
 
 ## What NOT to do
 
-- Do not invent facts
-- Do not confuse obligations with plans, validity with selection, hypotheses with facts
-- Do not pretend to be in a later state than evidence allows
-- Do not smooth over contradictions
-- Do not add concepts without a simplification proof
-- Do not ask for axioms unless the user wants to change the reasoning kernel itself
-- Do not introduce more than 2 new terms per response
-- Do not leave new terms unjustified (missing Replaces / Why not existing / Deletable if)
+- Do not fabricate metadata (use `unknown` for missing fields in DISCOVERY)
+- Do not mix source types and derived types in the same ledger
+- Do not apply expiry/review_by to structural facts that cannot change
+- Do not count user-supplied terms or domain nouns against the noun budget
 - Do not span more than one mode in a single response
 - Do not treat DISCOVERY output as structural — it is scaffolding until confirmed
+- Do not invent facts; unsupported bridges become ASSUMPTIONs
+- Do not confuse obligations with plans, validity with selection, hypotheses with facts
+- Do not pretend to be in a later state than the evidence allows
+- Do not run V0-8/V0-9 when the final state is not READY-TO-COMMIT
