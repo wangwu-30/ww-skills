@@ -27,12 +27,19 @@ echo "GIT_HEAD: $GIT_HEAD"
 DATA_DIR="$REPO_ROOT/.repo-alive"
 FINGERPRINT="$DATA_DIR/fingerprint.json"
 FRESH="no"
-if [ -f "$FINGERPRINT" ]; then
+FORCE_ANALYZE="${1:-}"  # pass "analyze" to force re-analysis
+if [ "$FORCE_ANALYZE" = "analyze" ]; then
+  echo "FORCE_ANALYZE: yes — will re-run analysis"
+elif [ -f "$FINGERPRINT" ]; then
   STORED=$(python3 -c "import json; d=json.load(open('$FINGERPRINT')); print(d.get('git_head',''))" 2>/dev/null || echo "")
   [ "$STORED" = "$GIT_HEAD" ] && FRESH="yes"
 fi
 echo "MANIFESTS_FRESH: $FRESH"
 ```
+
+Usage:
+- `/chat-repo` — use cached manifests if fresh, else re-analyze
+- `/chat-repo analyze` — force re-analysis even if manifests are fresh
 
 ---
 
