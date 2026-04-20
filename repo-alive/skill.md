@@ -255,10 +255,10 @@ After analysis, start the local server and open the canvas:
 ```bash
 SKILL_DIR="$HOME/.claude/skills/repo-alive"
 
-# Install ws if needed
-if [ ! -d "$SKILL_DIR/node_modules/ws" ]; then
-  echo "Installing ws..."
-  (cd "$SKILL_DIR" && npm install ws --no-save 2>/dev/null || npm install ws)
+# Install dependencies if needed
+if [ ! -f "$SKILL_DIR/node_modules/.package-lock.json" ]; then
+  echo "Installing dependencies..."
+  (cd "$SKILL_DIR" && npm install)
 fi
 
 # Kill any existing server on 4311
