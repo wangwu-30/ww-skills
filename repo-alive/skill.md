@@ -25,7 +25,7 @@ allowed-tools:
 ## Preamble
 
 ```bash
-echo "REPO-ALIVE v2.0.0"
+echo "REPO-ALIVE v0.0.2"
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 echo "REPO_ROOT: $REPO_ROOT"
 GIT_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "NO_GIT")
@@ -170,7 +170,7 @@ Batch-grep all retained symbols. Drop if not found. Keep as candidate if one-sid
 ### Phase 7 — Write Manifests
 
 Write to `.repo-alive/`:
-- `fingerprint.json` — `{ git_head, generated_at, tool: "repo-alive/2.0.0" }`
+- `fingerprint.json` — `{ git_head, generated_at, tool: "repo-alive/0.0.2" }`
 - `graph.json` — `{ nodes, edges }`
 - `nodes/<id>.json` — full node manifest
 - `scenarios/<id>.json` — three-view scenario
