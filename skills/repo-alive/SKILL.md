@@ -1,5 +1,6 @@
 ---
 name: repo-alive
+user_invocable: true
 version: 0.2.1
 description: |
   指导 agent 理解任意代码仓库并与之对话。本质是"压缩"——把仓库压缩成分层、可复用、可下钻的知识,
