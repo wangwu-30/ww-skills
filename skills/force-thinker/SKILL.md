@@ -1,5 +1,6 @@
 ---
 name: force-thinker
+user_invocable: true
 version: 0.0.6
 description: |
   Rigorous design reasoning kernel. Forces typed inputs, derives obligations
