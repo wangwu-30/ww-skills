@@ -1,0 +1,25 @@
+README.md
+  s_1decdd9011538e::t_e322088cdd7a6b 7,35,51-105
+skills/force-thinker/SKILL.md
+  s_1decdd9011538e::t_edef85b60e7bf3 3
+skills/repo-alive/SKILL.md
+  s_1decdd9011538e::t_82bb23b082ea7b 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c80ee914f8ce295a18a9997f69cda293f4e1fd5",
+  "prompts": {},
+  "sessions": {
+    "s_1decdd9011538e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78a6efbe-1381-4776-a4ac-13ef3900eea9",
+        "model": "unknown"
+      },
+      "human_author": "wangjiaheng <wangjiaheng.555@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
