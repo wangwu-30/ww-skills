@@ -1,0 +1,6 @@
+interface:
+  display_name: "需求协作总路由"
+  short_description: "Route one explicit requirement through six controlled stages"
+  default_prompt: "Use $requirement-workflow-router to start this non-trivial request under the explicit pilot workflow."
+policy:
+  allow_implicit_invocation: false
