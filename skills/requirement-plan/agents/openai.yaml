@@ -1,0 +1,6 @@
+interface:
+  display_name: "制定路线图"
+  short_description: "Turn an aligned proposal into an approval-ready roadmap"
+  default_prompt: "Use $requirement-plan to turn the aligned proposal into an approval-ready roadmap."
+policy:
+  allow_implicit_invocation: false

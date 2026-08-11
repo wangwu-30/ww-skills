@@ -1,0 +1,6 @@
+interface:
+  display_name: "自主执行"
+  short_description: "Execute an approved roadmap and classify gaps safely"
+  default_prompt: "Use $requirement-execute to execute the approved roadmap within its authority boundary."
+policy:
+  allow_implicit_invocation: false

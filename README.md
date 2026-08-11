@@ -1,6 +1,6 @@
 # ww-skills
 
-Claude Code skills for codebase analysis, developer tooling, and rigorous design reasoning.
+Reusable Codex and Claude Code skills for codebase analysis, rigorous design reasoning, requirement delivery, and decision-partner communication.
 
 ## Skills
 
@@ -48,25 +48,51 @@ Rigorous design reasoning kernel. Forces typed inputs (FACT/GOAL/HARD_CONSTRAINT
 
 ---
 
+### [decision-partner-communication](./skills/decision-partner-communication/SKILL.md)
+
+结论先行的中文沟通能力。要求模型以决策伙伴而不是服务角色参与讨论：主动给出专业判断，只向用户询问无法从项目或公开资料中获得的私有事实，并用扎实证据解释反常识结论。
+
+**适用场景：** 非平凡说明、方案讨论、状态汇报、架构决策、路线图对齐、评审结论和交接。
+
+---
+
+### Requirement workflow suite
+
+一套路由 Skill 加六个阶段 Skill，用于把非平凡需求从理解推进到验收，同时把机械状态留在 SQLite，把人类可读材料保存在独立 Git 历史中。
+
+| Skill | 责任 |
+|---|---|
+| [requirement-workflow-router](./skills/requirement-workflow-router/SKILL.md) | 单一入口、短路径判断、最多三个并行需求、阶段与授权门禁 |
+| [requirement-frame](./skills/requirement-frame/SKILL.md) | 明确目标、成功标准、范围、约束、事实来源和调研方式 |
+| [requirement-research](./skills/requirement-research/SKILL.md) | 按决策风险选择项目核验、公开研究、有限实验或深度研究 |
+| [requirement-align](./skills/requirement-align/SKILL.md) | 形成结论先行的提案，进行对抗性审查并完成方案对齐 |
+| [requirement-plan](./skills/requirement-plan/SKILL.md) | 把已确认方案转成可授权、可回退、可验收的路线图 |
+| [requirement-execute](./skills/requirement-execute/SKILL.md) | 按已批准路线图自主执行，并正确处理现实偏差 |
+| [requirement-close](./skills/requirement-close/SKILL.md) | 按用户可观察结果和独立证据验收并关闭需求 |
+
+路由 Skill 自带 `workflow_state.py` 和单元测试。首次试点默认只允许一个活跃需求；稳定后可配置为最多三个。
+
+---
+
 ## Prerequisites
 
-- [Claude Code](https://claude.ai/code) CLI installed
+- Codex or [Claude Code](https://claude.ai/code) CLI installed
 - macOS or Linux
-- No runtime dependencies — `repo-alive` is a pure-text skill (uses only `ls`/`grep`/`git` and Claude's own tools)
+- Python 3 is required only for the requirement workflow router's SQLite state helper and tests
 
 ## Install
 
-This repo follows the [`vercel-labs/skills`](https://github.com/vercel-labs/skills) convention (`skills/<name>/SKILL.md`), so you can install it with the `skills` CLI — it auto-discovers both skills and installs them into the right folder for your agent.
+This repo follows the [`vercel-labs/skills`](https://github.com/vercel-labs/skills) convention (`skills/<name>/SKILL.md`), so you can install it with the `skills` CLI — it auto-discovers the available skills and installs them into the right folder for your agent.
 
 ### Via skills CLI (recommended)
 
-Install both skills globally for Claude Code (one command, no prompts):
+Install all skills globally for Claude Code (one command, no prompts):
 
 ```bash
 npx skills add wangwu-30/ww-skills -g -a claude-code -y
 ```
 
-Then invoke inside Claude Code with `/repo-alive` or `/force-thinker`.
+Then invoke an installed skill by name. The requirement workflow router is intentionally explicit-only during its pilot period.
 
 **Common variants:**
 
@@ -94,11 +120,10 @@ npx skills update
 
 ```bash
 git clone https://github.com/wangwu-30/ww-skills /tmp/ww-skills \
-  && cp -r /tmp/ww-skills/skills/repo-alive ~/.claude/skills/repo-alive \
-  && cp -r /tmp/ww-skills/skills/force-thinker ~/.claude/skills/force-thinker
+  && cp -r /tmp/ww-skills/skills/requirement-workflow-router ~/.codex/skills/requirement-workflow-router
 ```
 
-To update: `git -C /tmp/ww-skills pull` then re-run the `cp -r` lines.
+For Claude Code, replace `~/.codex/skills` with `~/.claude/skills`. To update, run `git -C /tmp/ww-skills pull` and copy the selected skill again.
 
 ## License
 

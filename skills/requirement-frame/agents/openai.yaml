@@ -1,0 +1,6 @@
+interface:
+  display_name: "需求框定"
+  short_description: "Frame goals, scope, truth, authority, and success clearly"
+  default_prompt: "Use $requirement-frame to frame this request before research or implementation."
+policy:
+  allow_implicit_invocation: false
