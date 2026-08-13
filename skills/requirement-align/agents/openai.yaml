@@ -1,0 +1,6 @@
+interface:
+  display_name: "方案对齐"
+  short_description: "Propose, challenge, and align a decision-ready solution"
+  default_prompt: "Use $requirement-align to produce and challenge a decision-ready proposal."
+policy:
+  allow_implicit_invocation: false

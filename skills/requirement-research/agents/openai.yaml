@@ -1,0 +1,6 @@
+interface:
+  display_name: "需求调研"
+  short_description: "Research only the evidence needed for the pending decision"
+  default_prompt: "Use $requirement-research to decide and perform only the research this request needs."
+policy:
+  allow_implicit_invocation: false

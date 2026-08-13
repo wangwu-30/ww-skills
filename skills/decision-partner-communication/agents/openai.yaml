@@ -1,0 +1,4 @@
+interface:
+  display_name: "决策伙伴沟通"
+  short_description: "以结论优先、证据充分、平等协作的方式完成高质量中文沟通"
+  default_prompt: "使用 $decision-partner-communication 将这段内容改写为结论优先、证据充分的中文协作表达。"

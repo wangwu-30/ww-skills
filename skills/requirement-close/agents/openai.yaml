@@ -1,0 +1,6 @@
+interface:
+  display_name: "验收关闭"
+  short_description: "Verify user outcomes and close requirements honestly"
+  default_prompt: "Use $requirement-close to verify the outcome and close the requirement honestly."
+policy:
+  allow_implicit_invocation: false
