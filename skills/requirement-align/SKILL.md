@@ -28,7 +28,10 @@ Run an internal grill pass:
 
 Revise the proposal after the challenge. Do not dump the grill transcript into the user-facing document.
 
-Before completing alignment, run the lexical audit required by `$decision-partner-communication`. Repeated prose such as `producer`, `receipt`, `consumer`, `scope`, `manifest`, `discovery`, `apply`, `fail-closed`, `runtime`, `code/dev-test-only`, `runner`, `fixture`, `cleanup`, and `authority` is a failed audit unless the occurrence is an exact registered literal or code symbol.
+Before completing alignment, run a lexical audit. Repeated prose such as `producer`, `receipt`,
+`consumer`, `scope`, `manifest`, `discovery`, `apply`, `fail-closed`, `runtime`,
+`code/dev-test-only`, `runner`, `fixture`, `cleanup`, and `authority` is a failed audit unless the
+occurrence is an exact registered literal or code symbol.
 
 ## Output and stop condition
 
@@ -36,4 +39,5 @@ Create or revise `提案.md` and `决策记录.md` following [references/alignme
 
 Stop after presenting the proposal and the few decisions that genuinely require the user. Do not create a roadmap, claim approval, or start implementation until the controller records explicit alignment.
 
-Use `$decision-partner-communication` for all user-facing text.
+Write all user-facing text as decision-partner communication: lead with the recommendation, explain
+only decisive evidence and trade-offs, and ask only questions that require private user judgment.

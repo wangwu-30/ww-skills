@@ -1,0 +1,6 @@
+interface:
+  display_name: "Software Engineering Router"
+  short_description: "Route software work through one proportionate engineering path"
+  default_prompt: "Use $software-engineering-router to choose and execute the right path for this repository task."
+policy:
+  allow_implicit_invocation: true

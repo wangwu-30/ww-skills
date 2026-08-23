@@ -1,0 +1,7 @@
+interface:
+  display_name: "Force Thinker"
+  short_description: "Reason rigorously from constraints to a defensible decision"
+  default_prompt: "Use $force-thinker to reason from facts and constraints to a defensible decision."
+
+policy:
+  allow_implicit_invocation: false

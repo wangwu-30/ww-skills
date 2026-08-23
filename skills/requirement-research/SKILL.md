@@ -32,4 +32,5 @@ Do not call ordinary repository reading “deep research.” Do not browse broad
 
 Create or revise `调研结论.md` using [references/research-output.md](references/research-output.md). Lead with the recommendation unlocked by the evidence, not with a diary of searches.
 
-Use `$decision-partner-communication` for the controller summary.
+Write the controller summary as decision-partner communication: lead with the recommendation,
+include only evidence that can change the decision, and state uncertainty honestly.

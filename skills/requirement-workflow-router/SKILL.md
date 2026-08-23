@@ -55,4 +55,6 @@ Return:
 4. at most three private decision questions, if any;
 5. the requested next stage, without claiming the transition occurred.
 
-Use `$decision-partner-communication` for all user-facing synthesis.
+Write all user-facing synthesis as decision-partner communication: lead with the conclusion, retain
+only decision-relevant evidence, state uncertainty honestly, and ask only questions whose answers
+cannot be discovered from available sources.

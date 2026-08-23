@@ -35,4 +35,5 @@ Never broaden production, data, credential, payment, external-message, or destru
 
 Report outcome, evidence, deviations, remaining risk, and the requested next stage. Do not claim acceptance when an independent verifier is required.
 
-Use `$decision-partner-communication` for the controller synthesis.
+Write the controller synthesis as decision-partner communication: lead with the outcome, distinguish
+evidence from uncertainty, and ask only for decisions outside the approved authority.

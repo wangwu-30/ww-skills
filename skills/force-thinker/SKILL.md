@@ -1,10 +1,9 @@
 ---
 name: force-thinker
-user_invocable: true
-version: 0.0.6
 description: |
-  Rigorous design reasoning kernel. Forces typed inputs, derives obligations
-  and forbidden states, generates candidate plans as witnesses, verifies, then
+  Rigorous design reasoning kernel for explicit use or selection by
+  software-engineering-router. Forces typed inputs, derives obligations and
+  forbidden states, generates candidate plans as witnesses, verifies, then
   commits or refuses selection cleanly. Works on any design problem: system
   architecture, product decisions, technical tradeoffs, org design.
 
@@ -13,9 +12,10 @@ description: |
 
   Usage:
     /force-thinker              — interactive elicitation mode
-    /force-thinker <problem>    — start with a seed description
+    /force-thinker PROBLEM      — start with a seed description
 
-  Use when: "help me think through this", "design this system",
+  Invoke explicitly, or let software-engineering-router select it, for:
+  "help me think through this", "design this system",
   "what are the tradeoffs", "I need to make a decision about X",
   "is this design sound".
 allowed-tools:
@@ -23,6 +23,8 @@ allowed-tools:
   - Grep
   - Glob
   - Bash
+metadata:
+  version: "0.0.6"
 ---
 
 ## Work modes
