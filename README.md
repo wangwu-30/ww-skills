@@ -6,7 +6,7 @@ Reusable Codex and Claude Code skills for codebase analysis, rigorous design rea
 
 ### [repo-alive](./skills/repo-alive/SKILL.md)
 
-Guides an agent to **understand any codebase by compression** — compress the repo into layered, reusable, drill-downable knowledge, then answer questions from it. A crutch for models that don't yet compress on their own: it teaches *why* compress, *where* to compress from, *what* to compress into. The concrete means (the "术") can be swapped as models improve, even discarded entirely.
+Guides an agent to understand a codebase by building a compact, evidence-grounded map, then drilling into current files on demand. The map accelerates future work; it never replaces the repository as the source of truth.
 
 **Modes:**
 ```
@@ -15,18 +15,19 @@ Guides an agent to **understand any codebase by compression** — compress the r
 ```
 
 **What it does:**
-- Compress from the business goal outward: name what the service does → expand the main line → drill into details layer by layer (by business depth, not directory depth)
-- Separate infra (frameworks/utils) from the business main line, or the trunk gets buried
-- Determinism over guessing: structural facts (dirs, file ownership, imports) come from `ls`/`grep`/build system; the LLM only fills in semantics
-- Persist a knowledge base to `.repo-alive/` — reused across sessions until git HEAD changes; leaves are always on-demand (never pre-flattened to avoid "summary of a summary")
-- Chat grounded in real files: every fact cites a fully-qualified name, never a line number
+- Select query mode (read-only, verify current facts) or map mode (write only `.repo-alive/**`) from the user's intent
+- Compress from the repository's purpose into main flows and capability domains, while separating infrastructure and runtime variants
+- Discover structure and entry points deterministically; use model reasoning for semantics, not file discovery
+- Persist `overview.md`, an auditable `routes.md` coverage ledger, and optional domain nodes while leaving code-level leaves on demand
+- Ground claims with stable symbols, routes, config keys, targets, tests, and repository-relative paths; distinguish `verified`, `inferred`, and `unknown`
+- Detect committed, staged, unstaged, unignored-untracked, and non-Git source changes with a dependency-free state tool
 
 **Core design:**
-- Primary key = fully-qualified name (stable, greppable), **never line numbers** — eliminates the whole class of line-number hallucination rather than auditing it after the fact
-- Layered summaries + progressive disclosure (read the top, drill down where needed)
-- Wiki-style uniqueness: each entity defined in one place, referenced from many; it's a DAG, not a strict tree
-- Every extracted cross-file relation carries a confidence; low-confidence flagged "待验证"
-- Fixed contract is minimal: only `.repo-alive/fingerprint.json`'s `git_head` field is locked; all other manifest paths/schemas are demo, freely replaceable
+- Stable, greppable anchors are persistent keys; line numbers may be temporary navigation aids, not durable evidence
+- Layered summaries + progressive disclosure: read the top, then load only the relevant domain and current source
+- Wiki-style uniqueness: define a fact once and link to it from other nodes
+- `routes.md` separates entry-point enumeration from end-to-end tracing, so shallow coverage cannot masquerade as complete understanding
+- `scripts/repo_state.py` stamps a content-sensitive source snapshot and artifact hashes; legacy HEAD-only fingerprints fail closed and must be restamped
 
 **Use when:** "理解这个仓库" / "chat with this codebase" / "讲讲这个项目" / "explain this repo", "understand this project"
 
@@ -78,7 +79,7 @@ Rigorous design reasoning kernel. Forces typed inputs (FACT/GOAL/HARD_CONSTRAINT
 
 - Codex or [Claude Code](https://claude.ai/code) CLI installed
 - macOS or Linux
-- Python 3 is required only for the requirement workflow router's SQLite state helper and tests
+- Python 3.11+ for `repo-alive` state verification and the requirement workflow router's SQLite state helper
 
 ## Install
 
@@ -120,7 +121,7 @@ npx skills update
 
 ```bash
 git clone https://github.com/wangwu-30/ww-skills /tmp/ww-skills \
-  && cp -r /tmp/ww-skills/skills/requirement-workflow-router ~/.codex/skills/requirement-workflow-router
+  && cp -r /tmp/ww-skills/skills/repo-alive ~/.codex/skills/repo-alive
 ```
 
 For Claude Code, replace `~/.codex/skills` with `~/.claude/skills`. To update, run `git -C /tmp/ww-skills pull` and copy the selected skill again.

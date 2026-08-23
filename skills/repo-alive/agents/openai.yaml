@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Alive"
+  short_description: "Build and use an evidence-grounded repository map"
+  default_prompt: "Use $repo-alive to map this repository and answer my codebase questions from current evidence."
