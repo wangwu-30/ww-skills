@@ -30,4 +30,5 @@ Compute and report the roadmap SHA-256 only after the committed roadmap bytes ar
 
 Present the roadmap for confirmation. Do not start execution in the same step unless the controller provides an already matching approved digest.
 
-Use `$decision-partner-communication` for the approval summary.
+Write the approval summary as decision-partner communication: lead with the proposed decision,
+surface exact authority and risk boundaries, and ask only for the approval that cannot be inferred.

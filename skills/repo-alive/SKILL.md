@@ -1,6 +1,6 @@
 ---
 name: repo-alive
-description: Build, refresh, and use an evidence-grounded, reusable map of a software repository, then answer architecture, onboarding, code-navigation, control-flow, ownership, debugging, change-impact, testing, and maintenance questions from current files. Use when asked to understand, explain, or chat with a codebase; trace a feature or bug; locate a safe change surface and relevant tests; map domains, entry points, or configuration; onboard an agent; or create/update `.repo-alive`, including requests such as “理解这个仓库” or “讲讲这个项目”. Explicit `analyze` or “重新分析” requests rebuild the persistent map.
+description: Build, refresh, and use an evidence-grounded repository navigation map and verify that its source snapshot and declared artifacts remain consistent. Use only when explicitly invoked or selected by software-engineering-router for repository orientation, code navigation, entry-point coverage, impact discovery, or `.repo-alive` maintenance. Explicit `analyze` or “重新分析” requests rebuild the persistent map. Freshness proves only the map-to-source snapshot closure; it does not prove semantic correctness, test success, or runtime health.
 metadata:
   version: "0.3.0"
 ---

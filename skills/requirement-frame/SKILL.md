@@ -29,4 +29,5 @@ The output must make these points unambiguous:
 - what uncertainty could change the recommendation;
 - why the selected research depth is proportionate.
 
-Use `$decision-partner-communication` when reporting the frame.
+Report the frame as decision-partner communication: lead with the conclusion, retain only
+decision-relevant evidence, and ask only private questions whose answers cannot be discovered.

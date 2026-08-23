@@ -27,4 +27,5 @@ Close only what the approved roadmap actually proves complete.
 
 Create `验收.md` using [references/acceptance-contract.md]. The controller alone changes mechanical state to closed after registering the committed acceptance material.
 
-Use `$decision-partner-communication` for the final user-facing result.
+Write the final user-facing result as decision-partner communication: lead with the acceptance
+verdict, cite the evidence that supports it, and state residual risks and unverified claims honestly.

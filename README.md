@@ -1,12 +1,18 @@
 # ww-skills
 
-Reusable Codex and Claude Code skills for codebase analysis, rigorous design reasoning, requirement delivery, and decision-partner communication.
+Eleven reusable Codex and Claude Code skills for agent-assisted software engineering: one stateless suite router, three focused leaf skills, and a seven-skill requirement workflow pilot.
 
 ## Skills
 
+### [software-engineering-router](./skills/software-engineering-router/SKILL.md)
+
+The stateless front door for ordinary software-engineering work. It frames the request, inspects the repository just enough to choose a route, then composes focused leaf skills or delegates an explicitly admitted lifecycle request to `requirement-workflow-router`. It does not persist a route, session, queue, approval, or requirement state.
+
+This is the suite's **only implicitly invocable Skill**. Every leaf Skill and every requirement-workflow Skill is explicit-only, so installing the full repository does not inject eleven competing behaviors into an agent turn. You can still invoke any leaf directly with `$skill-name`.
+
 ### [repo-alive](./skills/repo-alive/SKILL.md)
 
-Guides an agent to understand a codebase by building a compact, evidence-grounded map, then drilling into current files on demand. The map accelerates future work; it never replaces the repository as the source of truth.
+Builds a compact, evidence-grounded navigation map and verifies its source snapshot and artifact manifest. The map accelerates future work; it never replaces the repository as the source of truth. A `fresh` result proves only snapshot consistency—not semantic correctness, passing tests, or runtime health.
 
 **Modes:**
 ```
@@ -59,7 +65,7 @@ Rigorous design reasoning kernel. Forces typed inputs (FACT/GOAL/HARD_CONSTRAINT
 
 ### Requirement workflow suite
 
-一套路由 Skill 加六个阶段 Skill，用于把非平凡需求从理解推进到验收，同时把机械状态留在 SQLite，把人类可读材料保存在独立 Git 历史中。
+一套显式调用的试点路由 Skill 加六个阶段 Skill，用于把获准进入该流程的非平凡需求从理解推进到验收，同时把机械状态留在 SQLite，把人类可读材料保存在独立 Git 历史中。`software-engineering-router` 只做无状态分流；它不会复制、写入或绕过这套流程的状态、授权和材料。未进入该流程的普通研发请求仍按无状态路径处理。
 
 | Skill | 责任 |
 |---|---|
@@ -93,7 +99,7 @@ Install all skills globally for Claude Code (one command, no prompts):
 npx skills add wangwu-30/ww-skills -g -a claude-code -y
 ```
 
-Then invoke an installed skill by name. The requirement workflow router is intentionally explicit-only during its pilot period.
+The command installs all eleven Skills. After installation, only `software-engineering-router` may be invoked implicitly; all ten other Skills are explicit-only. Invoke a leaf directly with `$skill-name` when you already know the capability you want. The requirement workflow router remains intentionally explicit-only during its pilot period and is entered only after explicit workflow admission.
 
 **Common variants:**
 
@@ -124,8 +130,8 @@ git clone https://github.com/wangwu-30/ww-skills /tmp/ww-skills \
   && cp -r /tmp/ww-skills/skills/repo-alive ~/.codex/skills/repo-alive
 ```
 
-For Claude Code, replace `~/.codex/skills` with `~/.claude/skills`. To update, run `git -C /tmp/ww-skills pull` and copy the selected skill again.
+For Claude Code, replace `~/.codex/skills` with `~/.claude/skills`. Copy the whole `skills/` directory if you want the routed suite, or copy one leaf directory for explicit-only use. To update, run `git -C /tmp/ww-skills pull` and copy the selected directories again.
 
 ## License
 
-MIT
+[MIT](./LICENSE)
