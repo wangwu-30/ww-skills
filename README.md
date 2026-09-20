@@ -35,9 +35,9 @@ Guides an agent to understand a codebase by building a compact, evidence-grounde
 
 ### [repository-document-authoring](./skills/repository-document-authoring/SKILL.md)
 
-Writes or reviews repository-owned user guides, onboarding docs, quick starts, runbooks, Wiki pages, and published Agent instructions. It keeps one canonical repository source, grounds dynamic facts in executable authorities, makes stop conditions and acceptance observable, and publishes external pages as verified one-way projections.
+编写或审查以代码仓库为事实来源的用户指南、入门文档、快速开始、操作手册、Wiki 页面和面向 Agent 的操作说明。围绕读者任务组织步骤，明确前置条件、事实依据、停止条件与验收方式；按目标项目的实际约定工作，并在需要对外发布时维护可追溯、经回读核验的副本。
 
-**Use when:** drafting or reviewing product and operational documentation whose correctness depends on repository contracts or live capabilities.
+**适用场景：** 为项目补充使用文档、整理上手流程、核对文档与实现是否一致，或将仓库文档同步到外部平台。
 
 ---
 
