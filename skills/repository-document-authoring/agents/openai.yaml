@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repository Document Authoring"
+  short_description: "Write task-focused docs with canonical-source discipline"
+  default_prompt: "Use $repository-document-authoring to draft or review this user-facing project document."

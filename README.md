@@ -33,6 +33,14 @@ Guides an agent to understand a codebase by building a compact, evidence-grounde
 
 ---
 
+### [repository-document-authoring](./skills/repository-document-authoring/SKILL.md)
+
+Writes or reviews repository-owned user guides, onboarding docs, quick starts, runbooks, Wiki pages, and published Agent instructions. It keeps one canonical repository source, grounds dynamic facts in executable authorities, makes stop conditions and acceptance observable, and publishes external pages as verified one-way projections.
+
+**Use when:** drafting or reviewing product and operational documentation whose correctness depends on repository contracts or live capabilities.
+
+---
+
 ### [force-thinker](./skills/force-thinker/SKILL.md)
 
 Rigorous design reasoning kernel. Forces typed inputs (FACT/GOAL/HARD_CONSTRAINT/ASSUMPTION), derives obligations and forbidden states, generates candidate plans as witnesses, then commits or refuses selection cleanly. Works on any design problem.
