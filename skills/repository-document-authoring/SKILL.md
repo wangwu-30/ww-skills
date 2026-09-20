@@ -1,91 +1,100 @@
 ---
 name: repository-document-authoring
-description: Write or review repository-owned user guides, onboarding docs, quick starts, runbooks, Wiki pages, and published Agent instructions as focused task projections with explicit audiences, executable authorities, stop conditions, observable acceptance, and safe one-way publication. Use for product or operational documentation whose correctness depends on repository contracts or live capabilities; do not use for ADRs, incident reports, review logs, code comments, or generic marketing copy.
+description: 编写、改写或审查以代码仓库为事实来源的用户指南、入门文档、快速开始、操作手册、Wiki 页面和面向 Agent 的操作说明。当用户需要为项目补充使用文档、整理上手流程、核对文档与实现是否一致，或将仓库文档同步到外部平台时使用。明确读者、前置条件、事实依据、操作步骤、停止条件和验收方式，并按需维护可追溯的外部副本。不用于架构决策记录、事故复盘、评审日志、代码注释或通用营销文案。
 ---
 
-# Repository Document Authoring
+# 仓库文档编写与审查
 
-Produce documentation that lets one reader complete one task without first reconstructing the system or its history. Treat the repository-reviewed source as the maintained body and external pages as publications of that source.
+让一类读者能靠一篇文档完成一项明确任务。以仓库内的文档源文件作为持续维护的正文；需要发布到外部平台时，从已确认的源文件生成副本。
 
-## Establish the contract before writing
+## 确认任务与事实依据
 
-Identify these facts from current primary evidence:
+先从用户请求和当前项目中确认以下信息：
 
-- the reader role and the single task this document owns;
-- the inputs the reader must already have;
-- the repository file that owns the body;
-- the product or operational authorities the document must defer to;
-- any external projections that must be updated after review;
-- which facts are dynamic and must be read from executable help, capability, schema, or runtime readback.
+- **读者与任务**：谁会阅读，要完成什么，完成后能观察到什么结果。
+- **前置条件**：需要哪些权限、环境、输入或已有知识。
+- **正文位置**：哪个仓库文件负责这项任务，是否已有内容可以修改或引用。
+- **事实依据**：哪些项目约定、接口定义、命令帮助、配置、源码或运行结果决定文档内容。
+- **目标版本**：文档描述哪个版本、分支、提交或运行环境。
+- **交付范围**：本次是编写、修改、审查，还是还包含外部发布；外部页面与源文件如何对应。
 
-Read the target revision of repository instructions and authority documents. Do not substitute a working-tree snapshot, chat summary, old branch, or existing Wiki body for current Git evidence. If the requested wording would choose unresolved product semantics or contradict an authority, stop and ask the owner to decide; documentation is not permission to invent the contract.
+读取目标仓库实际存在的说明与贡献约定，例如适用的 `AGENTS.md`、README 和文档规范。按项目现有规则定位事实来源，不预设目录结构、固定文件名、审核角色或发布平台。没有明确约定时，采用与现有文档一致的最小改动，并说明必要假设。
 
-When working in HPO Studio, read [references/hpo-studio-profile.md](references/hpo-studio-profile.md) before drafting, reviewing, or publishing.
+围绕目标版本核对证据。起草时可以使用用户指定的工作区内容，并标明未提交或未验证的部分；描述发布版本时，核对对应提交及必要的运行证据。不要用聊天结论、旧分支、未刷新的远端缓存或既有外部页面替代当前核验。
 
-## Write the task path
+先自行查明项目中可获得的信息。只有影响正确性的事实缺失、依据冲突或产品语义尚未确定，且无法从现有证据解决时，才请用户或相应负责人决定；其余明确部分继续推进。
 
-Put the reader's decision-critical information first:
+## 围绕读者的操作顺序编写
 
-1. State who the page is for, what they will accomplish, and the required inputs in the first screen.
-2. Present only the mandatory path in task order. For each action, give the usable command or navigation target and the observable result.
-3. Place stop conditions beside the step that can fail. Say what must not happen and what evidence or owner is needed to continue.
-4. End with observable acceptance: what the reader can inspect to know the task succeeded.
-5. Link optional implementation theory, operations detail, troubleshooting depth, and extension scenarios instead of interrupting the main path.
+把完成任务所需的信息放在前面：
 
-Write the current effective state. Exclude historical evolution, internal debate, reasoning transcripts, meeting notes, implementation plans, and development/test receipts from the operating body. A concise revision table at the beginning is acceptable when the project requires it. Historical or internal background inside the body requires an explicit owner decision.
+1. **开头说明适用范围**：写清读者、目标、前置条件和适用版本或环境，让读者第一屏就能判断是否适用。
+2. **按执行顺序组织主流程**：只展开必需步骤，每一步给出可用的命令或操作入口，以及可观察的预期结果。明确命令的执行目录和需要替换的参数。
+3. **在风险步骤旁写停止条件**：说明出现什么情况应停止、应避免什么操作、需要补齐什么证据或由谁处理。
+4. **用可观察结果收尾**：给出检查方法及成功判据，避免仅写“完成配置”或“运行成功”。
+5. **链接可选内容**：将深入原理、扩展用法、详细排障和运维背景放到独立章节或已有文档中，主流程只保留必要入口。
 
-Runtime evidence required by the product contract is not development trivia. Keep it when the reader needs it to perform or verify the task.
+使用读者熟悉、符合用户或项目约定的语言。首次出现的必要术语给出简短解释；命令、参数、字段名和代码标识符保留原样。
 
-## Preserve authority boundaries
+正文描述当前有效的操作方式。将历史沿革、内部讨论、实施计划和开发验证记录放在适当的记录中；只有会影响读者执行或判断的背景才进入正文。任务本身要求读者采集的运行证据、版本限制和必要的兼容说明应保留。
 
-- Explain stable intent and task semantics; link dynamic fields, defaults, enums, thresholds, command syntax, and readiness to their executable authority.
-- Do not copy the same runbook into several audience pages. Give each page one owner task and link deeper authorities.
-- Do not present target state, planned behavior, local mocks, or isolated tests as deployed current behavior. Name the evidence status and unresolved gaps.
-- Do not turn examples into additional contracts. Mark them as examples and keep normative rules at their actual authority.
-- Do not add a second schema, policy, registry, or workflow through prose.
+## 保持事实和维护责任清晰
 
-## Review the draft
+- 每项规则保留一个明确的维护来源，其他页面引用它。面向不同读者的页面各自负责一项任务，避免复制整套操作手册。
+- 对易变的默认值、枚举、阈值、字段和命令语法，链接可核验的帮助、接口定义或其他实际依据。主流程需要具体值或命令时，给出经过核对的示例及适用版本，避免让读者自行拼装关键步骤。
+- 区分已实现、已部署、仅在本地验证和计划中的行为。测试通过不能单独证明线上可用；无法验证的内容明确标注缺口。
+- 将示例标为示例，避免从示例推导出额外规则。不要通过文档新增未经确认的配置格式、策略或工作流程。
+- 将外部文档视为发布副本。发现外部内容与仓库不一致时，先核对事实并修正维护来源，再更新需要同步的副本。
 
-Reject or revise the draft if any answer is unclear:
+## 审查与验证
 
-- Can the intended reader identify the goal and required inputs without scrolling through background?
-- Does every mandatory step lead to an observable result?
-- Are failure and stop conditions explicit at the point of risk?
-- Does the page claim only the state supported by current authorities and evidence?
-- Are optional details linked rather than duplicated?
-- Is there exactly one maintained body for every normative statement?
-- Could a future default, field, enum, threshold, or command change without making this page silently false?
+逐项检查并修正具体问题：
 
-For a review-only request, report concrete violations, their impact on the reader's task, and the smallest source-side correction. Do not edit or publish unless the user also authorized changes.
+- 读者能否立即判断适用范围，并准备好所需输入？
+- 必需步骤是否完整，每一步是否有明确操作和可观察结果？
+- 停止条件是否放在对应步骤旁，且能指导读者处理失败？
+- 每项行为描述是否有目标版本的依据，是否误把计划或测试结果写成线上事实？
+- 可选细节是否有合适入口，规则是否存在重复维护？
+- 动态字段或命令变更后，是否有明确的来源可以重新核对？
+- 文档中的链接、相对路径、示例和标题是否正确且一致？
 
-## Publish as a one-way projection
+按改动范围执行项目已有的文档检查。可安全运行的命令，在适当环境中验证；涉及真实写入、删除、费用或外部系统的步骤，优先核对命令帮助、预演模式或隔离环境，不为验证文档擅自扩大操作范围。无法执行的部分明确说明。
 
-Change the repository canonical source on a branch and pass its normal review before publishing, unless the owner explicitly authorizes an early projection from an exact reviewed commit. Bind every publication to an immutable source identity.
+仅审查时，输出具体位置、问题、对读者任务的影响及最小修正建议。根据用户已授权的范围决定是否修改；不因审查请求自行发布文档。
 
-For each projected body, include a non-contract receipt:
+## 按需发布外部副本
+
+仅在本次任务包含外部发布时执行本节。只编写或修改仓库文件时，无需创建外部页面。
+
+### 确认发布来源
+
+遵循目标项目实际存在的分支、审核和发布约定。将每次发布绑定到可追溯的源版本；有 Git 提交时记录完整提交号与源文件摘要。没有提交时，仅在用户已授权从草稿发布的情况下，保存本次发布所用的不可变快照和摘要，并明确其状态。已有授权有效时无需重复询问。
+
+优先沿用项目现有的来源标记。没有约定时，可在页面附注或发布记录中记录以下信息，使读者能够追溯来源：
 
 ```text
-Canonical source: <repository path>
-Source commit: <reviewed commit SHA>
-Source digest: <sha256 of source bytes>
-Synced at: <UTC timestamp>
+仓库源文件：<仓库标识与文件路径>
+来源版本：<完整提交号，或已授权草稿的不可变快照标识>
+源文件摘要：<源文件原始字节的 SHA-256>
+同步时间：<UTC 时间>
 ```
 
-Publication may translate repository-relative links into target-system links and may replace the displayed title to match the approved mapping. It must not change contract text or create independent rules.
+来源记录只用于追溯，不构成额外的产品规则。发布时可将相对链接转换为目标平台链接，并按已确认的页面对应关系调整标题或格式；保持正文含义一致。发现内容需要实质修改时，先修改仓库来源。
 
-After each write, read back title, parent/location, body, links, receipt, permissions when relevant, and any external target metadata promised unchanged. A successful API response alone is insufficient.
+### 写入后回读核验
 
-When replacing a shortcut or external reference:
+写入后检查实际页面的标题、父级或位置、正文、链接和来源记录；任务涉及权限或其他元数据时一并核对。接口返回成功不足以证明发布正确。目录页说明读者应该进入哪个页面、完成什么任务，避免复制子页面正文。
 
-1. Treat the external target as outside the content input and write set unless it has an approved repository source.
-2. Create or update the repository-backed normal page.
-3. Read back its body, source receipt, title, parent, and links.
-4. Switch navigation to the verified normal page.
-5. Delete only the exact shortcut node, never the external target.
-6. Re-read the tree and the external target identity/metadata.
+如果本次还包含替换快捷方式或外部引用：
 
-If any create, update, move, delete, or readback result is unknown, stop writes and investigate read-only. Do not automatically retry an ambiguous mutation.
+1. 确认操作范围，区分快捷方式本身与它指向的外部对象。
+2. 创建或更新对应仓库源文件的页面，并回读确认内容和位置。
+3. 将导航切换到已验证的页面。
+4. 仅在已授权删除旧入口时删除对应快捷方式；不能由此推导出删除外部对象的权限。
+5. 重新检查导航结构和外部对象状态。
 
-## Handoff
+任何创建、更新、移动、删除或回读操作结果不明时，暂停后续写入，先通过查询查明状态，避免盲目重试造成重复或覆盖。
 
-Report the canonical path, exact source commit and digest, pages affected, validation performed, preserved external objects, and remaining gaps. Keep MR readiness, full Gate, deployment, and publication status separate; one does not imply another.
+## 交付结果
+
+提供便于审阅的源文件位置、主要改动、已完成的验证和剩余缺口。涉及外部发布时，再列出来源版本与摘要、目标页面以及回读结果。按实际证据报告文档修改、审核、部署和发布的完成状态。
