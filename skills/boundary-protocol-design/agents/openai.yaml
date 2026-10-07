@@ -1,0 +1,4 @@
+interface:
+  display_name: "跨边界操作协议设计"
+  short_description: "明确跨线程、事务、进程和恢复的处理责任、结果含义与资源生命周期"
+  default_prompt: "用 $boundary-protocol-design 查清这项操作的处理责任、结果含义、资源生命周期和失败恢复，给出最小可验证方案。"

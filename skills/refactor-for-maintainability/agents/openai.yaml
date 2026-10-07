@@ -1,0 +1,5 @@
+interface:
+  display_name: "可维护性重构"
+  short_description: "审查修改知识的扩散，重整用例、状态、版本与迁移交付的职责边界"
+  default_prompt: "使用 $refactor-for-maintainability 沿真实调用与消费者分析维护负担，构造完整职责与删除方案，并推进已授权范围直到调用、交付和验证闭合。"
+

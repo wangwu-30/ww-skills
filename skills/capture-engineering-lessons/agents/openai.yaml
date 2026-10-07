@@ -1,0 +1,7 @@
+interface:
+  display_name: "主动沉淀工程经验"
+  short_description: "纠正、复用与精简工程知识，按需改进 Skill"
+  default_prompt: "使用 $capture-engineering-lessons 审阅实际任务与 diff；对既有知识、测试或 Skill 作最小且有用的纠正，并报告真实证据，不人为制造新 Lesson。"
+
+policy:
+  allow_implicit_invocation: true

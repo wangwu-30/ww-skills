@@ -1,0 +1,7 @@
+interface:
+  display_name: "最小合理方案设计"
+  short_description: "先诊断并查清真实义务，再选最小方案，用挑刺和消融去掉多余机制"
+  default_prompt: "使用 $minimal-solution-design 诊断这项变更，查清真实义务，选出最小合理方案，并做挑刺和消融。"
+
+policy:
+  allow_implicit_invocation: true
