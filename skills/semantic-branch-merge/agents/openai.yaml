@@ -1,0 +1,7 @@
+interface:
+  display_name: "分支意图与语义合并"
+  short_description: "从分叉点梳理双方意图，评估交互与成本；冲突的意图和语义交给人判断"
+  default_prompt: "使用 $semantic-branch-merge 从共同分叉点梳理双方意图与语义变化；评估时判断交互、成本和待裁定冲突，实际合并时交付保留双方有效成果且完成适用验证的可用组合版本。先区分评估与已有执行授权，不重复确认。"
+
+policy:
+  allow_implicit_invocation: true
