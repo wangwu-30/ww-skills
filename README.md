@@ -140,6 +140,6 @@ MIT
 
 ## hpo-studio-neo skill sync
 
-`skills/` 中 44 个 skill(42 个 `catalog/skills/` HPO 平台 skill + `capture-engineering-lessons`、`minimal-solution-design`)同步自 hpo-studio-neo 仓库 main 分支。首次同步基线:main @ f7fde2bb9(2026-10-07)。
+`skills/` 中 44 个 skill(42 个 `catalog/skills/` HPO 平台 skill + `capture-engineering-lessons`、`minimal-solution-design`)同步自 hpo-studio-neo 仓库 main 分支。首次同步基线:main @ d21009a68(2026-10-07,由 sync 脚本校准)。
 
 自动同步:`~/.agent-comm/scripts/sync-ww-skills.sh`(本机定时任务驱动,读 hpo 仓 main 引用,不触碰其工作树)。
