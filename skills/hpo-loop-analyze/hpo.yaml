@@ -1,0 +1,17 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-loop-analyze
+  displayName: HPO Loop Analysis Agent
+  version: 1.0.0
+  owner: platform-team
+  status: active
+spec:
+  category: result-analyzer
+  contract:
+    output: hpo_loop.analysis_result/v1
+  permissions:
+    read: [task.context, task.trials, task.decisions, task.insights]
+    deny: [experiment.create, experiment.control, task.mutate, insight.commit]
+provenance:
+  sourceType: bundled

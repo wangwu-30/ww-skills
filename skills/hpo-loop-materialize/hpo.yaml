@@ -1,0 +1,25 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-loop-materialize
+  displayName: HPO Loop Provider Config Materializer
+  version: 1.0.0
+  owner: platform-team
+  status: active
+spec:
+  # 与搜参/分析不同类：它不产候选、不做判断，只把已选定的候选值写进参考实验的
+  # 完整配置。归到 candidate-search 会让「谁是唯一候选生产者」这条硬约束变模糊。
+  category: config-materialization
+  contract:
+    output: hpo.provider-config-materialization/v1
+  permissions:
+    read: [task.context]
+    # 它拿到的只有「模板 + 已选候选」，不需要历史、决策或洞察；给多了等于把
+    # 「AI 只做参数适配、不做参数选择」这条边界交还给模型自觉。
+    deny:
+      - experiment.create
+      - experiment.control
+      - task.mutate
+      - insight.commit
+provenance:
+  sourceType: bundled

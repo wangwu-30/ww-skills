@@ -1,0 +1,17 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-loop-search
+  displayName: HPO Loop Search Agent
+  version: 1.0.0
+  owner: platform-team
+  status: active
+spec:
+  category: candidate-search
+  contract:
+    output: hpo_loop.search_result/v1
+  permissions:
+    read: [task.context, task.trials, task.decisions, task.insights]
+    deny: [experiment.create, experiment.control, task.mutate, insight.commit]
+provenance:
+  sourceType: bundled
