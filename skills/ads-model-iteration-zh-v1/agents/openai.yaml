@@ -1,0 +1,4 @@
+interface:
+  display_name: "广告模型"
+  short_description: "广告模型迭代方法、链路与优化知识沉淀"
+  default_prompt: "使用 $ads-model-iteration 解释广告模型迭代，包括召回、粗排、精排、混排、延迟反馈、冷启动、校准、稳定性和在线服务架构。"

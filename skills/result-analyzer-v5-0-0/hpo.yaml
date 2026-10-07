@@ -1,0 +1,19 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-result-analyzer
+  displayName: HPO Snapshot Result Analyzer
+  version: 5.0.0
+  owner: platform-team
+  status: candidate
+spec:
+  category: result-analysis
+  contract:
+    input: hpo.result-analysis-context/v6
+    output: hpo.result-analysis-result/v5
+  capabilities: [report-display-metric-snapshot/v1]
+  permissions:
+    read: [task.context, experiment.metrics, task.knowledge_refs]
+    deny: [experiment.create, experiment.control, task.mutate, evidence.write]
+provenance:
+  sourceType: bundled-publish-source

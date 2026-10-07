@@ -1,0 +1,19 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-candidate-search
+  displayName: HPO Candidate Search (action-free treatments)
+  version: 6.0.0
+  owner: platform-team
+  status: active
+spec:
+  category: candidate-search
+  contract:
+    input: hpo.candidate-search-input/v5
+    output: hpo.candidate-search-result/v8
+  capabilities: [candidate-group-configs/v1]
+  permissions:
+    read: [task.context, task.trials, task.decisions, task.insights]
+    deny: [experiment.create, experiment.control, task.mutate, insight.commit]
+provenance:
+  sourceType: bundled

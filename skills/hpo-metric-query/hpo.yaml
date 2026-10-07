@@ -1,0 +1,16 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-metric-query
+  displayName: HPO Metric Query
+  version: 1.0.0
+  owner: platform-team
+  status: candidate
+spec:
+  category: metric-query
+  capabilities: [query-metric-readonly/v1]
+  permissions:
+    read: [task.context, provider.metric_metadata, provider.metric_values]
+    deny: [experiment.create, experiment.control, task.mutate, evidence.write]
+provenance:
+  sourceType: bundled-publish-source

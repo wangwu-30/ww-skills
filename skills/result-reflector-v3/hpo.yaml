@@ -1,0 +1,19 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-result-reflector
+  displayName: HPO Snapshot-aware Result Reflector
+  version: 3.0.0
+  owner: platform-team
+  status: candidate
+spec:
+  category: reflection
+  contract:
+    input: hpo.reflection-context/v3
+    output: hpo.reflection-result/v2
+  capabilities: [consume-analyzer-result-ref/v1]
+  permissions:
+    read: [task.context, task.trials, task.decisions, task.insights, experiment.metrics]
+    deny: [experiment.create, experiment.control, task.mutate, insight.commit, evidence.write]
+provenance:
+  sourceType: bundled-publish-source

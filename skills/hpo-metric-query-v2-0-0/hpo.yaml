@@ -1,0 +1,16 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-metric-query
+  displayName: HPO Metric Snapshot Query
+  version: 2.0.0
+  owner: platform-team
+  status: candidate
+spec:
+  category: metric-query
+  capabilities: [query-metric-readonly/v3, report-bounded-observation/v1]
+  permissions:
+    read: [task.context, provider.metric_metadata, provider.metric_values]
+    deny: [experiment.create, experiment.control, task.mutate, evidence.write]
+provenance:
+  sourceType: bundled-publish-source

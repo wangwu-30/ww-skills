@@ -1,0 +1,18 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-result-analyzer
+  displayName: HPO Direct-query Result Analyzer
+  version: 4.2.1
+  owner: platform-team
+  status: draft
+spec:
+  category: result-analysis
+  contract:
+    input: hpo.result-analysis-context/v5
+    output: hpo.result-analysis-result/v4
+  permissions:
+    read: [task.context, experiment.metrics, task.knowledge_refs]
+    deny: [experiment.create, experiment.control, task.mutate]
+provenance:
+  sourceType: bundled

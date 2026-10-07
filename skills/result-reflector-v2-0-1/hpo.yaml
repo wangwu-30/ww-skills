@@ -1,0 +1,18 @@
+apiVersion: hpo.ai/v1
+kind: SkillExtension
+metadata:
+  name: hpo-result-reflector
+  displayName: HPO Direct Result Reflector
+  version: 2.0.1
+  owner: platform-team
+  status: active
+spec:
+  category: reflection
+  contract:
+    input: hpo.reflection-context/v2
+    output: hpo.reflection-result/v2
+  permissions:
+    read: [task.context, task.trials, task.decisions, task.insights, experiment.metrics]
+    deny: [experiment.create, experiment.control, task.mutate, insight.commit]
+provenance:
+  sourceType: bundled
