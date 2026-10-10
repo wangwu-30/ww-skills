@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Python Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Set up Git for tests
+      run: |
+        git config --global user.email "ci@example.com"
+        git config --global user.name "CI Test"
+    
+    - name: Run workflow_state tests
+      run: python3 -m unittest skills/requirement-workflow-router/scripts/test_workflow_state.py
+    
+    - name: Run repo_state tests
+      run: python3 -m unittest skills/repo-alive/scripts/test_repo_state.py
+
+  validate-frontmatter:
+    name: Validate SKILL.md Frontmatter
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Validate SKILL.md files
+      run: python3 .github/scripts/validate_frontmatter.py
