@@ -65,6 +65,14 @@ Rigorous design reasoning kernel. Forces typed inputs (FACT/GOAL/HARD_CONSTRAINT
 
 ---
 
+### [eval](./skills/eval/SKILL.md)
+
+Evaluate or optimize an agent skill with frozen tasks and versions, repeated paired runs, independent quality grading, and latency/token/tool-call measurements. Includes plan validation, aggregation, and a Codex isolation audit helper.
+
+**Use when:** benchmarking, comparing, validating, or tuning a skill.
+
+---
+
 ### Requirement workflow suite
 
 一套路由 Skill 加六个阶段 Skill，用于把非平凡需求从理解推进到验收，同时把机械状态留在 SQLite，把人类可读材料保存在独立 Git 历史中。
