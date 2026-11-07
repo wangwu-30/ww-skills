@@ -73,6 +73,18 @@ Evaluate or optimize an agent skill with frozen tasks and versions, repeated pai
 
 ---
 
+### [trace-real-behavior](./skills/trace-real-behavior/SKILL.md)
+
+围绕真实调用方调查和修复小范围 bug 或性能问题。沿入口、配置、状态与时序追踪生产者、转换和消费者，用合法输入与独立预期复现偏差，再验证修复及其影响范围。
+
+配套 [workflow](./skills/trace-real-behavior/references/workflow.md) 覆盖仓库调查、候选排除、真实复现、必要修复、独立审查和 PR 交付。用户要求新发现或避免重复提交时，再应用 [已有 PR 去重补丁](./skills/trace-real-behavior/references/patches/001-novelty-pr-dedup.md)，核对实际差异和当前主分支。
+
+**适用场景：** “调查这个行为是否有 bug”“找一个已有 PR 未覆盖的问题”“复现、修复并提交 PR”，以及需要真实测量的局部性能问题。
+
+**验证状态：** 保留完整 candidate-v3 正文及历史失败记录。原评测没有达到全部条件通过的标准；本次打包新增的 workflow 与补丁组合也没有重跑整套行为评测。详见 [验证记录](./skills/trace-real-behavior/references/validation.md)。
+
+---
+
 ### Requirement workflow suite
 
 一套路由 Skill 加六个阶段 Skill，用于把非平凡需求从理解推进到验收，同时把机械状态留在 SQLite，把人类可读材料保存在独立 Git 历史中。

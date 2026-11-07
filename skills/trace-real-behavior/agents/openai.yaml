@@ -1,0 +1,4 @@
+interface:
+  display_name: "追踪真实行为"
+  short_description: "沿真实调用链调查局部问题，用合法输入验证偏差并完成必要修复"
+  default_prompt: "使用 $trace-real-behavior 调查这个问题，沿真实调用链复现，并在我授权的范围内完成修复和交付。"
